@@ -1,6 +1,6 @@
 """
 Gerador de Provas Unicid - Versão Web
-Versão 3.0.0
+Versão 3.0.1
 Gera provas com questões de múltipla escolha e dissertativas,
 já no formato da Unicid
 
@@ -21,6 +21,8 @@ Este programa é Software Livre licenciado sob a GPL v3+.
 Veja https://www.gnu.org/licenses/ para mais detalhes.
 
 ChangeLog
+3.0.1 maio/2026:  Preenchimento automático de {{Sem aqui}} (1 ou 2) e
+                  {{Ano aqui}} (ano corrente) nos templates DOCX
 3.0.0 maio/2026:  Migração para Streamlit; entrada via XLSX; sem dependência
                   do Google Colab ou Google Drive; download em ZIP
 """
@@ -228,6 +230,15 @@ def gera_prova_bytes(modelo_caminho, identificador_prova, questoes_formatadas,
             if replace_text_in_paragraph_runs(paragraph, placeholder_rodape, conteudo_rodape):
                 break
 
+        # Substitui semestre e ano
+        agora = datetime.now()
+        semestre = "1" if agora.month <= 6 else "2"
+        ano = str(agora.year)
+        for paragraph in document.paragraphs:
+            replace_text_in_paragraph_runs(paragraph, "{{Sem aqui}}", semestre)
+        for paragraph in document.paragraphs:
+            replace_text_in_paragraph_runs(paragraph, "{{Ano aqui}}", ano)
+
         buffer = BytesIO()
         document.save(buffer)
         buffer.seek(0)
@@ -257,7 +268,7 @@ def main():
     )
 
     st.title("Gerador de Provas Unicid")
-    st.caption("Versão 3.0.0 · Cid R Andrade · profandrade@gmail.com")
+    st.caption("Versão 3.0.1 · Cid R Andrade · profandrade@gmail.com")
 
     st.divider()
 
