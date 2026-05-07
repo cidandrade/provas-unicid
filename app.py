@@ -100,12 +100,18 @@ def replace_text_in_paragraph_runs(paragraph, old_text, new_text, bold_prefix=Fa
 
 
 def all_paragraphs(document):
-    """Itera sobre todos os parágrafos do documento, inclusive dentro de tabelas."""
+    """Itera sobre todos os parágrafos do documento, inclusive tabelas e cabeçalhos de seção."""
     yield from document.paragraphs
     for table in document.tables:
         for row in table.rows:
             for cell in row.cells:
                 yield from cell.paragraphs
+    for section in document.sections:
+        yield from section.header.paragraphs
+        for table in section.header.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    yield from cell.paragraphs
 
 
 def criar_prova(nome_prova, simbolo_rodape, qt_questoes, questoes_selecionadas):
