@@ -99,6 +99,15 @@ def replace_text_in_paragraph_runs(paragraph, old_text, new_text, bold_prefix=Fa
     return True
 
 
+def all_paragraphs(document):
+    """Itera sobre todos os parágrafos do documento, inclusive dentro de tabelas."""
+    yield from document.paragraphs
+    for table in document.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                yield from cell.paragraphs
+
+
 def criar_prova(nome_prova, simbolo_rodape, qt_questoes, questoes_selecionadas):
     """
     Cria o conteúdo de uma prova (questões objetivas formatadas e gabarito).
@@ -230,13 +239,13 @@ def gera_prova_bytes(modelo_caminho, identificador_prova, questoes_formatadas,
             if replace_text_in_paragraph_runs(paragraph, placeholder_rodape, conteudo_rodape):
                 break
 
-        # Substitui semestre e ano
+        # Substitui semestre e ano (buscando também em células de tabela)
         agora = datetime.now()
         semestre = "1" if agora.month <= 6 else "2"
         ano = str(agora.year)
-        for paragraph in document.paragraphs:
+        for paragraph in all_paragraphs(document):
             replace_text_in_paragraph_runs(paragraph, "{{Sem aqui}}", semestre)
-        for paragraph in document.paragraphs:
+        for paragraph in all_paragraphs(document):
             replace_text_in_paragraph_runs(paragraph, "{{Ano aqui}}", ano)
 
         buffer = BytesIO()
