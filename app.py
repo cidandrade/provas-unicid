@@ -68,12 +68,33 @@ def replace_text_in_paragraph_runs(paragraph, old_text, new_text, bold_prefix=Fa
     if old_text not in paragraph.text:
         return False
 
+    # Captura formatação do run que contém o placeholder (ou o primeiro run)
+    ref_run = None
+    for run in paragraph.runs:
+        if ref_run is None:
+            ref_run = run
+        if old_text in run.text:
+            ref_run = run
+            break
+
     original_text = "".join(run.text for run in paragraph.runs)
     paragraph.clear()
     parts = original_text.split(old_text)
 
+    def add_run(text):
+        r = paragraph.add_run(text)
+        if ref_run is not None:
+            r.bold = ref_run.bold
+            r.italic = ref_run.italic
+            r.underline = ref_run.underline
+            if ref_run.font.name:
+                r.font.name = ref_run.font.name
+            if ref_run.font.size:
+                r.font.size = ref_run.font.size
+        return r
+
     for i, part in enumerate(parts):
-        paragraph.add_run(part)
+        add_run(part)
         if i < len(parts) - 1:
             if bold_prefix:
                 temp = new_text
@@ -84,17 +105,17 @@ def replace_text_in_paragraph_runs(paragraph, old_text, new_text, bold_prefix=Fa
                         if prefix in temp:
                             before, temp = temp.split(prefix, 1)
                             if before:
-                                paragraph.add_run(before)
-                            bold_run = paragraph.add_run(prefix)
+                                add_run(before)
+                            bold_run = add_run(prefix)
                             bold_run.bold = True
                             match = True
                             break
                     if not match:
                         if temp:
-                            paragraph.add_run(temp)
+                            add_run(temp)
                         break
             else:
-                paragraph.add_run(new_text)
+                add_run(new_text)
 
     return True
 
