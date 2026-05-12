@@ -288,10 +288,9 @@ def gera_prova_bytes(modelo_caminho, identificador_prova, questoes_formatadas,
                     if replace_text_in_paragraph_runs(paragraph, placeholder_diss, texto_diss):
                         break
 
-        # Substitui o símbolo da versão no rodapé
+        # Substitui o símbolo da versão no rodapé (pode haver mais de uma ocorrência)
         for paragraph in all_paragraphs(document):
-            if replace_text_in_paragraph_runs(paragraph, "{{simbolo aqui}}", simbolo_rodape):
-                break
+            replace_text_in_paragraph_runs(paragraph, "{{simbolo aqui}}", simbolo_rodape)
 
         # Substitui semestre e ano (buscando também em células de tabela)
         agora = datetime.now()
