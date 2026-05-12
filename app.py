@@ -123,19 +123,30 @@ def replace_text_in_paragraph_runs(paragraph, old_text, new_text, bold_prefix=Fa
 
 
 def all_paragraphs(document):
-    """Itera sobre todos os parágrafos do documento: corpo, tabelas, cabeçalhos e rodapés."""
-    yield from document.paragraphs
-    for table in document.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                yield from cell.paragraphs
+    """
+    Itera sobre todos os parágrafos do documento: corpo, tabelas, cabeçalhos,
+    rodapés e Structured Document Tags (w:sdt), percorrendo recursivamente.
+    """
+    from docx.oxml.ns import qn
+    from docx.text.paragraph import Paragraph
+
+    _CONTAINER_TAGS = {
+        qn("w:body"), qn("w:tbl"), qn("w:tr"), qn("w:tc"),
+        qn("w:hdr"), qn("w:ftr"),
+        qn("w:sdt"), qn("w:sdtContent"),
+    }
+
+    def _iter(element):
+        for child in element:
+            if child.tag == qn("w:p"):
+                yield Paragraph(child, element)
+            elif child.tag in _CONTAINER_TAGS:
+                yield from _iter(child)
+
+    yield from _iter(document.element.body)
     for section in document.sections:
-        for part in (section.header, section.footer):
-            yield from part.paragraphs
-            for table in part.tables:
-                for row in table.rows:
-                    for cell in row.cells:
-                        yield from cell.paragraphs
+        yield from _iter(section.header._element)
+        yield from _iter(section.footer._element)
 
 
 def criar_prova(nome_prova, simbolo_rodape, qt_questoes, questoes_selecionadas):
