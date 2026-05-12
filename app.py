@@ -74,13 +74,16 @@ def replace_text_in_paragraph_runs(paragraph, old_text, new_text, bold_prefix=Fa
     if old_text not in paragraph.text:
         return False
 
-    # Caso simples: placeholder em um único run e sem necessidade de bold_prefix.
-    # Substitui só esse run, preservando os demais elementos (ex: w:fldChar).
+    # Caso simples: sem necessidade de bold_prefix.
+    # Substitui o texto em todos os runs que contêm o placeholder, preservando
+    # os demais elementos do parágrafo (ex: w:fldChar de numeração de página).
     if not bold_prefix:
+        replaced = False
         for run in paragraph.runs:
             if old_text in run.text:
                 run.text = run.text.replace(old_text, new_text)
-                return True
+                replaced = True
+        return replaced
 
     # Caso complexo: placeholder pode estar dividido entre runs, ou bold_prefix
     # requer divisão em múltiplos runs. Reconstrói o parágrafo inteiro.
