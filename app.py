@@ -123,18 +123,19 @@ def replace_text_in_paragraph_runs(paragraph, old_text, new_text, bold_prefix=Fa
 
 
 def all_paragraphs(document):
-    """Itera sobre todos os parágrafos do documento, inclusive tabelas e cabeçalhos de seção."""
+    """Itera sobre todos os parágrafos do documento: corpo, tabelas, cabeçalhos e rodapés."""
     yield from document.paragraphs
     for table in document.tables:
         for row in table.rows:
             for cell in row.cells:
                 yield from cell.paragraphs
     for section in document.sections:
-        yield from section.header.paragraphs
-        for table in section.header.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    yield from cell.paragraphs
+        for part in (section.header, section.footer):
+            yield from part.paragraphs
+            for table in part.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        yield from cell.paragraphs
 
 
 def criar_prova(nome_prova, simbolo_rodape, qt_questoes, questoes_selecionadas):
@@ -261,11 +262,11 @@ def gera_prova_bytes(modelo_caminho, identificador_prova, questoes_formatadas,
                     if replace_text_in_paragraph_runs(paragraph, placeholder_diss, texto_diss):
                         break
 
-        # Substitui o rodapé
+        # Substitui o rodapé (busca em corpo, tabelas, cabeçalho e footer)
         nome_completo = "Regimental" if tipo_avaliacao == "R" else "Final"
         conteudo_rodape = f"{simbolo_rodape} Avaliação {nome_completo} {simbolo_rodape}"
         placeholder_rodape = "{{Rodape aqui}}"
-        for paragraph in document.paragraphs:
+        for paragraph in all_paragraphs(document):
             if replace_text_in_paragraph_runs(paragraph, placeholder_rodape, conteudo_rodape):
                 break
 
