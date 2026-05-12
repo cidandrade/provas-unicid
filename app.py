@@ -288,12 +288,9 @@ def gera_prova_bytes(modelo_caminho, identificador_prova, questoes_formatadas,
                     if replace_text_in_paragraph_runs(paragraph, placeholder_diss, texto_diss):
                         break
 
-        # Substitui o rodapé (busca em corpo, tabelas, cabeçalho e footer)
-        nome_completo = "Regimental" if tipo_avaliacao == "R" else "Final"
-        conteudo_rodape = f"{simbolo_rodape} Avaliação {nome_completo} {simbolo_rodape}"
-        placeholder_rodape = "{{Rodape aqui}}"
+        # Substitui o símbolo da versão no rodapé
         for paragraph in all_paragraphs(document):
-            if replace_text_in_paragraph_runs(paragraph, placeholder_rodape, conteudo_rodape):
+            if replace_text_in_paragraph_runs(paragraph, "{{simbolo aqui}}", simbolo_rodape):
                 break
 
         # Substitui semestre e ano (buscando também em células de tabela)
