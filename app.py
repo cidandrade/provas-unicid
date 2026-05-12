@@ -1,6 +1,6 @@
 """
 Gerador de Provas Unicid - Versão Web
-Versão 3.0.1
+Versão 3.1.0
 Gera provas com questões de múltipla escolha e dissertativas,
 já no formato da Unicid
 
@@ -21,6 +21,8 @@ Este programa é Software Livre licenciado sob a GPL v3+.
 Veja https://www.gnu.org/licenses/ para mais detalhes.
 
 ChangeLog
+3.1.0 maio/2026:  Regimental passa a usar Modelo_AR2.docx com 3 dissertativas
+                  (questões 9, 10, 11 sorteadas aleatoriamente)
 3.0.1 maio/2026:  Preenchimento automático de {{Sem aqui}} (1 ou 2) e
                   {{Ano aqui}} (ano corrente) nos templates DOCX
 3.0.0 maio/2026:  Migração para Streamlit; entrada via XLSX; sem dependência
@@ -53,7 +55,7 @@ LETRAS_PROVA = list(SIMBOLOS_PROVA.keys())
 ABC = "ABCDE"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODELO_AR = os.path.join(BASE_DIR, "Modelo_AR.docx")
+MODELO_AR = os.path.join(BASE_DIR, "Modelo_AR2.docx")
 MODELO_AF = os.path.join(BASE_DIR, "Modelo_AF.docx")
 
 
@@ -237,7 +239,7 @@ def get_questoes_dissertativas_xlsx(uploaded_file):
 
 
 def gera_prova_bytes(modelo_caminho, identificador_prova, questoes_formatadas,
-                     simbolo_rodape, tipo_avaliacao, questao_dissertativa=None):
+                     simbolo_rodape, tipo_avaliacao, questoes_dissertativas=None):
     """
     Preenche o template DOCX com as questões e retorna os bytes do arquivo gerado.
     """
@@ -251,12 +253,13 @@ def gera_prova_bytes(modelo_caminho, identificador_prova, questoes_formatadas,
                 if replace_text_in_paragraph_runs(paragraph, placeholder, questao_texto, bold_prefix=True):
                     break
 
-        # Substitui a questão dissertativa (só AR, posição 9)
-        if questao_dissertativa:
-            placeholder_diss = "{{Questão 9 aqui}}"
-            for paragraph in document.paragraphs:
-                if replace_text_in_paragraph_runs(paragraph, placeholder_diss, questao_dissertativa):
-                    break
+        # Substitui as questões dissertativas (AR: posições 9, 10, 11)
+        if questoes_dissertativas:
+            for idx, texto_diss in enumerate(questoes_dissertativas, start=9):
+                placeholder_diss = f"{{{{Questão {idx} aqui}}}}"
+                for paragraph in document.paragraphs:
+                    if replace_text_in_paragraph_runs(paragraph, placeholder_diss, texto_diss):
+                        break
 
         # Substitui o rodapé
         nome_completo = "Regimental" if tipo_avaliacao == "R" else "Final"
@@ -304,14 +307,14 @@ def main():
     )
 
     st.title("Gerador de Provas Unicid")
-    st.caption("Versão 3.0.1 · Cid R Andrade · profandrade@gmail.com")
+    st.caption("Versão 3.1.0 · Cid R Andrade · profandrade@gmail.com")
 
     st.divider()
 
     # 1. Tipo de avaliação
     tipo_label = st.radio(
         "Tipo de avaliação",
-        ["Regimental — AR  (8 objetivas + 1 dissertativa)", "Final — AF  (20 objetivas)"],
+        ["Regimental — AR  (8 objetivas + 3 dissertativas)", "Final — AF  (20 objetivas)"],
         horizontal=True
     )
     tipo_codigo = "R" if "Regimental" in tipo_label else "F"
@@ -391,10 +394,17 @@ def main():
                 return
 
             questoes_dissertativas = None
+            qt_dissertativas = 3
             if tipo_codigo == "R":
                 questoes_dissertativas = get_questoes_dissertativas_xlsx(arquivo_dissertativas)
                 if not questoes_dissertativas:
                     st.error("Nenhuma questão dissertativa válida encontrada. Verifique o arquivo XLSX.")
+                    return
+                if len(questoes_dissertativas) < qt_dissertativas:
+                    st.error(
+                        f"São necessárias ao menos **{qt_dissertativas}** questões dissertativas, "
+                        f"mas o arquivo contém apenas **{len(questoes_dissertativas)}**."
+                    )
                     return
 
             gabaritos = {}
@@ -411,15 +421,15 @@ def main():
                         nome_prova, simbolo, qt_questoes_objetivas, questoes_selecionadas
                     )
 
-                    dissertativa_selecionada = None
+                    dissertativas_selecionadas = None
                     if tipo_codigo == "R" and questoes_dissertativas:
-                        dissertativa_selecionada = random.choice(questoes_dissertativas)
+                        dissertativas_selecionadas = random.sample(questoes_dissertativas, qt_dissertativas)
 
                     gabaritos[nome_prova] = gabarito_da_prova
 
                     prova_bytes = gera_prova_bytes(
                         modelo_caminho, nome_prova, questoes_formatadas,
-                        simbolo, tipo_codigo, dissertativa_selecionada
+                        simbolo, tipo_codigo, dissertativas_selecionadas
                     )
                     if prova_bytes:
                         zf.writestr(f"prova_{nome_prova}.docx", prova_bytes)
