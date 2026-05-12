@@ -66,9 +66,24 @@ def replace_text_in_paragraph_runs(paragraph, old_text, new_text, bold_prefix=Fa
     Substitui um texto em um parágrafo, lidando com múltiplas 'runs'.
     Preserva a formatação ao redor e aplica negrito ao prefixo (A), (B)...
     se bold_prefix for True.
+
+    Quando o placeholder está inteiramente num único run e bold_prefix é False,
+    substitui só o texto desse run para preservar outros elementos do parágrafo
+    (ex: campos de numeração de página w:fldChar).
     """
     if old_text not in paragraph.text:
         return False
+
+    # Caso simples: placeholder em um único run e sem necessidade de bold_prefix.
+    # Substitui só esse run, preservando os demais elementos (ex: w:fldChar).
+    if not bold_prefix:
+        for run in paragraph.runs:
+            if old_text in run.text:
+                run.text = run.text.replace(old_text, new_text)
+                return True
+
+    # Caso complexo: placeholder pode estar dividido entre runs, ou bold_prefix
+    # requer divisão em múltiplos runs. Reconstrói o parágrafo inteiro.
 
     # Captura formatação do run que contém o placeholder (ou o primeiro run)
     ref_run = None
