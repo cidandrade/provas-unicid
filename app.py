@@ -1,6 +1,6 @@
 """
 Gerador de Provas Unicid - Versão Web
-Versão 3.1.0
+Versão 3.2.0
 Gera provas com questões de múltipla escolha e dissertativas,
 já no formato da Unicid
 
@@ -21,6 +21,8 @@ Este programa é Software Livre licenciado sob a GPL v3+.
 Veja https://www.gnu.org/licenses/ para mais detalhes.
 
 ChangeLog
+3.2.0 maio/2026:  Suporte a formatação markdown inline nas questões objetivas:
+                  *itálico*, **negrito**, ***negrito+itálico***
 3.1.0 maio/2026:  Regimental passa a usar Modelo_AR2.docx com 3 dissertativas
                   (questões 9, 10, 11 sorteadas aleatoriamente)
 3.0.1 maio/2026:  Preenchimento automático de {{Sem aqui}} (1 ou 2) e
@@ -37,6 +39,7 @@ from io import BytesIO
 from docx import Document
 from datetime import datetime
 import openpyxl
+import re
 
 # --- Configurações Globais ---
 
@@ -57,6 +60,29 @@ ABC = "ABCDE"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODELO_AR = os.path.join(BASE_DIR, "Modelo_AR2.docx")
 MODELO_AF = os.path.join(BASE_DIR, "Modelo_AF.docx")
+
+
+_MD_PATTERN = re.compile(r'\*\*\*(.*?)\*\*\*|\*\*(.*?)\*\*|\*(.*?)\*', re.DOTALL)
+
+def parse_markdown_segments(text):
+    """Divide text em segmentos com flags (bold, italic) baseadas em marcadores markdown."""
+    segments = []
+    last_end = 0
+    for m in _MD_PATTERN.finditer(text):
+        if m.start() > last_end:
+            segments.append((text[last_end:m.start()], False, False))
+        if m.group(1) is not None:
+            segments.append((m.group(1), True, True))
+        elif m.group(2) is not None:
+            segments.append((m.group(2), True, False))
+        else:
+            segments.append((m.group(3), False, True))
+        last_end = m.end()
+    if last_end < len(text):
+        segments.append((text[last_end:], False, False))
+    if not segments:
+        segments.append((text, False, False))
+    return segments
 
 
 # --- Funções de Lógica Central (mantidas do prova.py) ---
@@ -113,8 +139,16 @@ def replace_text_in_paragraph_runs(paragraph, old_text, new_text, bold_prefix=Fa
                 r.font.size = ref_run.font.size
         return r
 
+    def add_run_with_markdown(text):
+        for segment_text, md_bold, md_italic in parse_markdown_segments(text):
+            if not segment_text:
+                continue
+            r = add_run(segment_text)
+            r.bold = r.bold or md_bold
+            r.italic = r.italic or md_italic
+
     for i, part in enumerate(parts):
-        add_run(part)
+        add_run_with_markdown(part)
         if i < len(parts) - 1:
             if bold_prefix:
                 temp = new_text
@@ -125,14 +159,14 @@ def replace_text_in_paragraph_runs(paragraph, old_text, new_text, bold_prefix=Fa
                         if prefix in temp:
                             before, temp = temp.split(prefix, 1)
                             if before:
-                                add_run(before)
+                                add_run_with_markdown(before)
                             bold_run = add_run(prefix)
                             bold_run.bold = True
                             match = True
                             break
                     if not match:
                         if temp:
-                            add_run(temp)
+                            add_run_with_markdown(temp)
                         break
             else:
                 add_run(new_text)
@@ -333,7 +367,7 @@ def main():
     )
 
     st.title("Gerador de Provas Unicid")
-    st.caption("Versão 3.1.0 · Cid R Andrade · profandrade@gmail.com")
+    st.caption("Versão 3.2.0 · Cid R Andrade · profandrade@gmail.com")
 
     st.divider()
 
