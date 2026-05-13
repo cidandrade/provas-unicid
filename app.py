@@ -114,7 +114,13 @@ def replace_text_in_paragraph_runs(paragraph, old_text, new_text, bold_prefix=Fa
     # Caso complexo: placeholder pode estar dividido entre runs, ou bold_prefix
     # requer divisão em múltiplos runs. Reconstrói o parágrafo inteiro.
 
-    # Captura formatação do run que contém o placeholder (ou o primeiro run)
+    # Salva formatação por caractere antes de limpar (preserva negrito do número/valor)
+    char_fmt = []
+    for run in paragraph.runs:
+        fmt = (run.bold, run.italic, run.underline, run.font.name, run.font.size)
+        char_fmt.extend([fmt] * len(run.text))
+
+    # Captura ref_run (run do placeholder) para estilizar o conteúdo da questão
     ref_run = None
     for run in paragraph.runs:
         if ref_run is None:
@@ -124,8 +130,11 @@ def replace_text_in_paragraph_runs(paragraph, old_text, new_text, bold_prefix=Fa
             break
 
     original_text = "".join(run.text for run in paragraph.runs)
+    placeholder_pos = original_text.find(old_text)
+    before_text = original_text[:placeholder_pos]
+    after_text = original_text[placeholder_pos + len(old_text):]
+
     paragraph.clear()
-    parts = original_text.split(old_text)
 
     def add_run(text):
         r = paragraph.add_run(text)
@@ -147,29 +156,51 @@ def replace_text_in_paragraph_runs(paragraph, old_text, new_text, bold_prefix=Fa
             r.bold = r.bold or md_bold
             r.italic = r.italic or md_italic
 
-    for i, part in enumerate(parts):
-        add_run_with_markdown(part)
-        if i < len(parts) - 1:
-            if bold_prefix:
-                temp = new_text
-                while True:
-                    match = False
-                    for char in ABC:
-                        prefix = f"({char})"
-                        if prefix in temp:
-                            before, temp = temp.split(prefix, 1)
-                            if before:
-                                add_run_with_markdown(before)
-                            bold_run = add_run(prefix)
-                            bold_run.bold = True
-                            match = True
-                            break
-                    if not match:
-                        if temp:
-                            add_run_with_markdown(temp)
-                        break
-            else:
-                add_run(new_text)
+    def add_formatted_segment(text, start_pos):
+        """Adiciona text preservando a formatação original de cada run (por posição de caractere)."""
+        if not text:
+            return
+        i = 0
+        while i < len(text):
+            fmt = char_fmt[start_pos + i]
+            j = i + 1
+            while j < len(text) and char_fmt[start_pos + j] == fmt:
+                j += 1
+            bold, italic, underline, font_name, font_size = fmt
+            r = paragraph.add_run(text[i:j])
+            r.bold = bold
+            r.italic = italic
+            r.underline = underline
+            if font_name:
+                r.font.name = font_name
+            if font_size:
+                r.font.size = font_size
+            i = j
+
+    # Antes do placeholder: reproduz negrito/itálico originais (ex: "1. (0,25 pt.) ")
+    add_formatted_segment(before_text, 0)
+
+    # Conteúdo da questão: bold_prefix para (A)-(E) + suporte a markdown inline
+    temp = new_text
+    while True:
+        match = False
+        for char in ABC:
+            prefix = f"({char})"
+            if prefix in temp:
+                before, temp = temp.split(prefix, 1)
+                if before:
+                    add_run_with_markdown(before)
+                bold_run = add_run(prefix)
+                bold_run.bold = True
+                match = True
+                break
+        if not match:
+            if temp:
+                add_run_with_markdown(temp)
+            break
+
+    # Depois do placeholder: reproduz formatação original
+    add_formatted_segment(after_text, placeholder_pos + len(old_text))
 
     return True
 
