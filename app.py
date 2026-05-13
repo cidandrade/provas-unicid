@@ -353,7 +353,7 @@ def gera_prova_bytes(modelo_caminho, identificador_prova, questoes_formatadas,
             for idx, texto_diss in enumerate(questoes_dissertativas, start=9):
                 placeholder_diss = f"{{{{Questão {idx} aqui}}}}"
                 for paragraph in document.paragraphs:
-                    if replace_text_in_paragraph_runs(paragraph, placeholder_diss, texto_diss):
+                    if replace_text_in_paragraph_runs(paragraph, placeholder_diss, texto_diss, bold_prefix=True):
                         break
 
         # Substitui o símbolo da versão no rodapé (pode haver mais de uma ocorrência)
@@ -419,7 +419,8 @@ def main():
     st.caption(
         "Planilha XLSX: **coluna A** = enunciado · **coluna B** = resposta correta "
         "· **colunas C–F** = distratores.  \nA primeira linha deve ser a primeira questão "
-        "(sem linha de cabeçalho)."
+        "(sem linha de cabeçalho).  \n"
+        "Formatação no texto: `*itálico*` · `**negrito**` · `***negrito e itálico***`"
     )
     arquivo_objetivas = st.file_uploader(
         "Carregar arquivo de questões objetivas (.xlsx)",
@@ -433,7 +434,8 @@ def main():
         st.subheader("Questões dissertativas")
         st.caption(
             "Planilha XLSX: **coluna A** = enunciado.  \n"
-            "A primeira linha deve ser a primeira questão (sem linha de cabeçalho)."
+            "A primeira linha deve ser a primeira questão (sem linha de cabeçalho).  \n"
+            "Formatação no texto: `*itálico*` · `**negrito**` · `***negrito e itálico***`"
         )
         arquivo_dissertativas = st.file_uploader(
             "Carregar arquivo de questões dissertativas (.xlsx)",
