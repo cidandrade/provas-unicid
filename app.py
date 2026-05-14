@@ -48,7 +48,7 @@ SIMBOLOS_PROVA = {
     "B": "==",
     "C": "%%",
     "D": "//",
-    "E": "[]",
+    "E": "++",
     "F": "##",
     "G": "!!",
     "H": "()"
@@ -59,7 +59,7 @@ ABC = "ABCDE"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODELO_AR = os.path.join(BASE_DIR, "Modelo_AR2.docx")
-MODELO_AF = os.path.join(BASE_DIR, "Modelo_AF.docx")
+MODELO_AF = os.path.join(BASE_DIR, "Modelo_AF2.docx")
 
 
 _MD_PATTERN = re.compile(r'\*\*\*(.*?)\*\*\*|\*\*(.*?)\*\*|\*(.*?)\*', re.DOTALL)
@@ -334,7 +334,8 @@ def get_questoes_dissertativas_xlsx(uploaded_file):
 
 
 def gera_prova_bytes(modelo_caminho, identificador_prova, questoes_formatadas,
-                     simbolo_rodape, tipo_avaliacao, questoes_dissertativas=None):
+                     simbolo_rodape, tipo_avaliacao, questoes_dissertativas=None,
+                     professor="", disciplina=""):
     """
     Preenche o template DOCX com as questões e retorna os bytes do arquivo gerado.
     """
@@ -368,6 +369,12 @@ def gera_prova_bytes(modelo_caminho, identificador_prova, questoes_formatadas,
             replace_text_in_paragraph_runs(paragraph, "{{Sem aqui}}", semestre)
         for paragraph in all_paragraphs(document):
             replace_text_in_paragraph_runs(paragraph, "{{Ano aqui}}", ano)
+
+        # Substitui professor e disciplina
+        for paragraph in all_paragraphs(document):
+            replace_text_in_paragraph_runs(paragraph, "{{professor aqui}}", professor)
+        for paragraph in all_paragraphs(document):
+            replace_text_in_paragraph_runs(paragraph, "{{disciplina aqui}}", disciplina)
 
         buffer = BytesIO()
         document.save(buffer)
@@ -451,11 +458,28 @@ def main():
 
     st.divider()
 
-    # 5. Botão de geração
+    # 5. Dados do professor e disciplina
+    col1, col2 = st.columns(2)
+    with col1:
+        nome_professor = st.text_input("Professor", placeholder="Nome completo do professor")
+    with col2:
+        nome_disciplina = st.text_input("Disciplina", placeholder="Nome da disciplina")
+
+    st.divider()
+
+    # 6. Botão de geração
     gerar = st.button("Gerar Provas", type="primary", use_container_width=True)
 
     if gerar:
         # --- Validações ---
+        if not nome_professor.strip():
+            st.error("Preencha o nome do professor antes de continuar.")
+            return
+
+        if not nome_disciplina.strip():
+            st.error("Preencha o nome da disciplina antes de continuar.")
+            return
+
         if arquivo_objetivas is None:
             st.error("Carregue o arquivo de questões objetivas antes de continuar.")
             return
@@ -522,7 +546,9 @@ def main():
 
                     prova_bytes = gera_prova_bytes(
                         modelo_caminho, nome_prova, questoes_formatadas,
-                        simbolo, tipo_codigo, dissertativas_selecionadas
+                        simbolo, tipo_codigo, dissertativas_selecionadas,
+                        professor=nome_professor.strip(),
+                        disciplina=nome_disciplina.strip()
                     )
                     if prova_bytes:
                         zf.writestr(f"prova_{nome_prova}.docx", prova_bytes)
