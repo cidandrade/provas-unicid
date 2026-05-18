@@ -1,6 +1,6 @@
 """
 Gerador de Provas Unicid - Versão Web
-Versão 3.2.0
+Versão 3.3.1
 Gera provas com questões de múltipla escolha e dissertativas,
 já no formato da Unicid
 
@@ -21,6 +21,10 @@ Este programa é Software Livre licenciado sob a GPL v3+.
 Veja https://www.gnu.org/licenses/ para mais detalhes.
 
 ChangeLog
+3.3.1 maio/2026:  Radio button para escolha do tipo de gabarito (Padrão ou Zipgrade);
+                  AR padrão → Modelo_AR.docx, AR Zipgrade → Modelo_ARZ.docx,
+                  AF padrão → Modelo_AF.docx, AF Zipgrade → Modelo_AFZ.docx
+3.3.0 maio/2026:  Campos de professor e disciplina; símbolo E atualizado
 3.2.0 maio/2026:  Suporte a formatação markdown inline nas questões objetivas:
                   *itálico*, **negrito**, ***negrito+itálico***
 3.1.0 maio/2026:  Regimental passa a usar Modelo_AR2.docx com 3 dissertativas
@@ -58,8 +62,12 @@ LETRAS_PROVA = list(SIMBOLOS_PROVA.keys())
 ABC = "ABCDE"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODELO_AR = os.path.join(BASE_DIR, "Modelo_AR2.docx")
-MODELO_AF = os.path.join(BASE_DIR, "Modelo_AF2.docx")
+MODELOS = {
+    ("R", "Padrão"):   "Modelo_AR.docx",
+    ("R", "Zipgrade"): "Modelo_ARZ.docx",
+    ("F", "Padrão"):   "Modelo_AF.docx",
+    ("F", "Zipgrade"): "Modelo_AFZ.docx",
+}
 
 
 _MD_PATTERN = re.compile(r'\*\*\*(.*?)\*\*\*|\*\*(.*?)\*\*|\*(.*?)\*', re.DOTALL)
@@ -405,7 +413,7 @@ def main():
     )
 
     st.title("Gerador de Provas Unicid")
-    st.caption("Versão 3.2.0 · Cid R Andrade · profandrade@gmail.com")
+    st.caption("Versão 3.3.1 · Cid R Andrade · profandrade@gmail.com")
 
     st.divider()
 
@@ -416,12 +424,19 @@ def main():
         horizontal=True
     )
     tipo_codigo = "R" if "Regimental" in tipo_label else "F"
-    modelo_caminho = MODELO_AR if tipo_codigo == "R" else MODELO_AF
     qt_questoes_objetivas = 8 if tipo_codigo == "R" else 20
+
+    # 2. Tipo de gabarito
+    gabarito_tipo = st.radio(
+        "Tipo de gabarito",
+        ["Padrão", "Zipgrade"],
+        horizontal=True
+    )
+    modelo_caminho = os.path.join(BASE_DIR, MODELOS[(tipo_codigo, gabarito_tipo)])
 
     st.divider()
 
-    # 2. Upload de questões objetivas
+    # 3. Upload de questões objetivas
     st.subheader("Questões objetivas")
     st.caption(
         "Planilha XLSX: **coluna A** = enunciado · **coluna B** = resposta correta "
@@ -435,7 +450,7 @@ def main():
         key="objetivas"
     )
 
-    # 3. Upload de questões dissertativas (somente AR)
+    # 4. Upload de questões dissertativas (somente AR)
     arquivo_dissertativas = None
     if tipo_codigo == "R":
         st.subheader("Questões dissertativas")
@@ -452,13 +467,13 @@ def main():
 
     st.divider()
 
-    # 4. Número de versões
+    # 5. Número de versões
     qt_versoes = st.slider("Número de versões da prova", min_value=1, max_value=8, value=4)
     st.caption(f"Serão geradas as versões: {', '.join(LETRAS_PROVA[:qt_versoes])}")
 
     st.divider()
 
-    # 5. Dados do professor e disciplina
+    # 6. Dados do professor e disciplina
     col1, col2 = st.columns(2)
     with col1:
         nome_professor = st.text_input("Professor", placeholder="Nome completo do professor")
@@ -467,7 +482,7 @@ def main():
 
     st.divider()
 
-    # 6. Botão de geração
+    # 7. Botão de geração
     gerar = st.button("Gerar Provas", type="primary", use_container_width=True)
 
     if gerar:
