@@ -1,6 +1,6 @@
 """
 Gerador de Provas Unicid - Versão Web
-Versão 3.3.1
+Versão 3.3.1a
 Gera provas com questões de múltipla escolha e dissertativas,
 já no formato da Unicid
 
@@ -21,6 +21,7 @@ Este programa é Software Livre licenciado sob a GPL v3+.
 Veja https://www.gnu.org/licenses/ para mais detalhes.
 
 ChangeLog
+3.3.1a maio/2026: Ajustes nos modelos Modelo_AF.docx e Modelo_AR.docx
 3.3.1 maio/2026:  Radio button para escolha do tipo de gabarito (Padrão ou Zipgrade);
                   AR padrão → Modelo_AR.docx, AR Zipgrade → Modelo_ARZ.docx,
                   AF padrão → Modelo_AF.docx, AF Zipgrade → Modelo_AFZ.docx
@@ -413,7 +414,7 @@ def main():
     )
 
     st.title("Gerador de Provas Unicid")
-    st.caption("Versão 3.3.1 · Cid R Andrade · profandrade@gmail.com")
+    st.caption("Versão 3.3.1a · Cid R Andrade · profandrade@gmail.com")
 
     st.divider()
 
