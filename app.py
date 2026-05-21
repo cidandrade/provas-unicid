@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 Gerador de Provas Unicid - Versão Web
-Versão 3.6.1
+Versão 3.6.2
 Gera provas com questões de múltipla escolha e dissertativas,
 já no formato da Unicid
 
-Autor: Cid R Andrade (profandrade@gmail.com)
+Autor: Prof.Me. Cid R. Andrade (profandrade@gmail.com)
 Co-Autor: Prof.Me. Rafael Cotrin (a partir da v3.4.0)
 Data desta versão: maio/2026
 
@@ -23,6 +23,8 @@ Este programa é Software Livre licenciado sob a GPL v3+.
 Veja https://www.gnu.org/licenses/ para mais detalhes.
 
 ChangeLog
+3.6.2 maio/2026: Uniformiza nome do autor para Prof.Me. Cid R. Andrade; corrige
+                  textos do Manual/FAQ sobre PDF (LibreOffice ou Word por plataforma)
 3.6.1 maio/2026: Randomização da IA: variação automática de instrução em cada
                   chamada aos prompts; pool dissertativas aumentado para 8;
                   aviso de variedade quando pool é pequeno
@@ -1504,7 +1506,7 @@ def _img(nome):
 
 def _ui_manual():
     st.header("Manual do Usuário")
-    st.caption("Versão 3.6.1 · Cid R Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
+    st.caption("Versão 3.6.2 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
     st.divider()
 
     # 1. Introdução
@@ -1527,7 +1529,7 @@ produzindo múltiplas versões embaralhadas de uma mesma prova para garantir int
 |---|---|
 | Navegador atualizado | Chrome, Edge, Firefox ou Safari |
 | Conexão com internet | Necessária para acessar o sistema e para o fluxo via IA |
-| Microsoft Word | Necessário **apenas** para geração de PDF (instalado no seu computador) |
+| LibreOffice ou Microsoft Word | Necessário **apenas** para geração de PDF — LibreOffice (Linux/Streamlit Cloud) ou Word (Windows/Mac) |
 | Chave da API Anthropic | Necessária **apenas** para o fluxo de importação via IA |
 
 > O sistema roda integralmente na nuvem — nenhum software adicional precisa ser instalado pelo usuário.
@@ -1639,7 +1641,7 @@ Use **Regenerar não confirmadas** para pedir uma nova tentativa só para as rej
 | **Professor / Disciplina** | Inseridos no cabeçalho de todas as versões |
 | **Questões dissertativas** | Radio 2 ou 3 — calcula automaticamente o valor por questão |
 | **Linhas de resposta** | Slider 4–20 linhas por questão dissertativa |
-| **Incluir PDF** | Requer Microsoft Word instalado |
+| **Incluir PDF** | Requer LibreOffice (Linux/Streamlit Cloud) ou Microsoft Word (Windows/Mac) |
 
 **Pontuação calculada automaticamente (AR):**
 - Objetivas: 8 × 0,25 pt = **2,00 pts** (fixo)
@@ -1674,7 +1676,7 @@ Após configurar, clique em **Gerar Provas**. O ZIP baixado contém:
     # 10. Limitações
     st.subheader("10. Limitações Conhecidas")
     st.markdown("""
-- Geração de PDF requer Microsoft Word instalado localmente.
+- Geração de PDF requer LibreOffice (Linux/Streamlit Cloud) ou Microsoft Word (Windows/Mac).
 - O fluxo via IA exige internet durante o processamento.
 - A qualidade da extração depende da organização do documento de origem.
 - O sistema não valida academicamente as questões geradas pela IA — revisão é indispensável.
@@ -1688,10 +1690,11 @@ def _ui_faq():
 
     perguntas = [
         ("Instalação e Requisitos",
-         "Preciso do Microsoft Word instalado?",
-         """Para gerar as provas em **DOCX**, o Word **não é necessário**.
-         Se marcar **"Incluir PDF no download"**, o Word é usado para a conversão.
-         Sem ele, o DOCX é gerado normalmente; apenas o PDF fica indisponível."""),
+         "Preciso do Microsoft Word ou LibreOffice instalado?",
+         """Para gerar as provas em **DOCX**, nenhum deles é necessário.
+         Se marcar **"Incluir PDF no download"**, o sistema usa **LibreOffice** (Linux/Streamlit Cloud)
+         ou **Microsoft Word** (Windows/Mac) para a conversão.
+         Sem o conversor disponível, o DOCX é gerado normalmente; apenas o PDF fica indisponível."""),
 
         ("Instalação e Requisitos",
          "O sistema funciona sem internet?",
@@ -1806,8 +1809,8 @@ def _ui_faq():
 
         ("Problemas",
          "O PDF gerado é diferente do DOCX?",
-         """Não. O PDF é uma conversão fiel feita pelo Microsoft Word — mesmo conteúdo
-         e layout. É fornecido apenas como alternativa de formato para impressão ou distribuição."""),
+         """Não. O PDF é uma conversão fiel do DOCX — mesmo conteúdo e layout.
+         É fornecido apenas como alternativa de formato para impressão ou distribuição."""),
 
         ("Problemas",
          "Posso gerar Prova Final (AF) usando a IA?",
@@ -1832,7 +1835,7 @@ def main():
     )
 
     st.title("Gerador de Provas Unicid")
-    st.caption("Versão 3.6.1 · Cid R Andrade · profandrade@gmail.com · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
+    st.caption("Versão 3.6.2 · Prof.Me. Cid R. Andrade · profandrade@gmail.com · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
 
     tab_ger, tab_man, tab_faq = st.tabs(["🏠 Gerador de Provas", "📖 Manual", "❓ FAQ"])
 
