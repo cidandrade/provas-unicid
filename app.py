@@ -60,12 +60,27 @@ from datetime import datetime
 import openpyxl
 import re
 
-# PDF via Microsoft Word — opcional, requer Word instalado localmente
-try:
-    from docx2pdf import convert as _docx2pdf
-    PDF_DISPONIVEL = True
-except ImportError:
-    PDF_DISPONIVEL = False
+# PDF — Windows/Mac via docx2pdf (Word); Linux via LibreOffice headless
+import platform as _platform
+import subprocess as _subprocess
+
+_SISTEMA = _platform.system()   # "Windows", "Darwin" ou "Linux"
+
+if _SISTEMA == "Linux":
+    # Verifica se libreoffice está disponível no PATH
+    try:
+        _subprocess.run(["libreoffice", "--version"], capture_output=True, timeout=10)
+        PDF_DISPONIVEL = True
+    except Exception:
+        PDF_DISPONIVEL = False
+    _docx2pdf = None  # não usado no Linux
+else:
+    try:
+        from docx2pdf import convert as _docx2pdf
+        PDF_DISPONIVEL = True
+    except ImportError:
+        PDF_DISPONIVEL = False
+        _docx2pdf = None
 
 # Integração com Claude API — opcional
 try:
@@ -159,41 +174,57 @@ def parse_markdown_segments(text):
 
 def docx_bytes_to_pdf_bytes(docx_bytes):
     """
-    Converte bytes DOCX em bytes PDF usando Microsoft Word (COM/Windows).
+    Converte bytes DOCX em bytes PDF.
+    - Linux: LibreOffice headless via subprocess.
+    - Windows/Mac: docx2pdf (requer Microsoft Word).
     Retorna (pdf_bytes, None) em caso de sucesso ou (None, msg_erro) em falha.
-
-    CoInitialize é chamado explicitamente porque o Streamlit executa em
-    threads secundárias que não possuem COM inicializado por padrão.
     """
     if not PDF_DISPONIVEL:
-        return None, "docx2pdf não está instalado."
-
-    try:
-        import pythoncom
-        _com_disponivel = True
-    except ImportError:
-        _com_disponivel = False
+        return None, "Conversão de PDF não disponível neste ambiente."
 
     with tempfile.TemporaryDirectory() as tmpdir:
         docx_path = os.path.join(tmpdir, "entrada.docx")
-        pdf_path  = os.path.join(tmpdir, "saida.pdf")
         with open(docx_path, "wb") as f:
             f.write(docx_bytes)
-        try:
-            if _com_disponivel:
-                pythoncom.CoInitialize()
-            _docx2pdf(docx_path, pdf_path)
-            with open(pdf_path, "rb") as f:
-                pdf_bytes = f.read()
-            return pdf_bytes, None
-        except Exception as e:
-            return None, str(e)
-        finally:
-            if _com_disponivel:
-                try:
-                    pythoncom.CoUninitialize()
-                except Exception:
-                    pass
+
+        if _SISTEMA == "Linux":
+            # LibreOffice headless — disponível no Streamlit Cloud via packages.txt
+            try:
+                result = _subprocess.run(
+                    ["libreoffice", "--headless", "--convert-to", "pdf",
+                     "--outdir", tmpdir, docx_path],
+                    capture_output=True, timeout=120
+                )
+                if result.returncode != 0:
+                    return None, result.stderr.decode("utf-8", errors="replace") or "LibreOffice retornou erro."
+                pdf_path = os.path.join(tmpdir, "entrada.pdf")
+                with open(pdf_path, "rb") as f:
+                    return f.read(), None
+            except Exception as e:
+                return None, str(e)
+        else:
+            # Windows / macOS — docx2pdf via Microsoft Word
+            try:
+                import pythoncom
+                _com_disponivel = True
+            except ImportError:
+                _com_disponivel = False
+
+            pdf_path = os.path.join(tmpdir, "saida.pdf")
+            try:
+                if _com_disponivel:
+                    pythoncom.CoInitialize()
+                _docx2pdf(docx_path, pdf_path)
+                with open(pdf_path, "rb") as f:
+                    return f.read(), None
+            except Exception as e:
+                return None, str(e)
+            finally:
+                if _com_disponivel:
+                    try:
+                        pythoncom.CoUninitialize()
+                    except Exception:
+                        pass
 
 
 # --- Importação de documentos não estruturados via IA ---
@@ -1888,19 +1919,19 @@ def main():
         st.divider()
 
         # 6. Opção de PDF
+        _pdf_help_on  = ("Converte cada DOCX para PDF via LibreOffice." if _SISTEMA == "Linux"
+                         else "Converte cada DOCX para PDF via Microsoft Word. Feche o Word antes de gerar.")
+        _pdf_help_off = ("Indisponível — LibreOffice não encontrado no servidor."
+                         if _SISTEMA == "Linux"
+                         else "Indisponível — instale: pip install docx2pdf (requer Microsoft Word)")
         gerar_pdf = st.checkbox(
             "Incluir PDF no download",
             value=False,
-            help=(
-                "Converte cada DOCX para PDF via Microsoft Word. "
-                "Feche o Word antes de gerar."
-                if PDF_DISPONIVEL
-                else "Indisponível — instale: pip install docx2pdf (requer Microsoft Word)"
-            ),
+            help=_pdf_help_on if PDF_DISPONIVEL else _pdf_help_off,
             disabled=not PDF_DISPONIVEL
         )
         if not PDF_DISPONIVEL:
-            st.caption("Para habilitar PDF: `pip install docx2pdf` (requer Microsoft Word)")
+            st.caption(_pdf_help_off)
 
     with col_dir:
         _usando_ia = st.session_state.get("ia_confirmadas", False)
@@ -2094,10 +2125,13 @@ def main():
             versoes_com_erro = ", ".join(v for v, _ in erros_pdf)
             # Mostra o motivo real do primeiro erro (geralmente o mesmo para todos)
             msg_erro = erros_pdf[0][1] or "erro desconhecido"
+            _dica_pdf = ("Dica: verifique se o LibreOffice está instalado no servidor."
+                         if _SISTEMA == "Linux"
+                         else "Dica: feche o Microsoft Word completamente antes de gerar.")
             st.warning(
                 f"Conversão para PDF falhou nas versões: {versoes_com_erro}.  \n"
                 f"**Motivo:** {msg_erro}  \n"
-                "Dica: feche o Microsoft Word completamente antes de gerar."
+                f"{_dica_pdf}"
             )
 
         if not erros:
