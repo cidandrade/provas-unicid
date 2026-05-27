@@ -160,7 +160,18 @@ MODELOS = {
     ("F", "Zipgrade"): "Modelo_AFZ.docx",
 }
 
-_MD_PATTERN = re.compile(r'\*\*\*(.*?)\*\*\*|\*\*(.*?)\*\*|\*(.*?)\*', re.DOTALL)
+_MD_PATTERN  = re.compile(r'\*\*\*(.*?)\*\*\*|\*\*(.*?)\*\*|\*(.*?)\*', re.DOTALL)
+_IMG_TAG_PAT = re.compile(r'\[img:([^\]]+)\]', re.IGNORECASE)
+
+
+def parse_img_tags(text):
+    """Remove [img:nome] do texto e retorna (texto_limpo, nome_arquivo | None)."""
+    match = _IMG_TAG_PAT.search(text)
+    if not match:
+        return text.strip(), None
+    filename = match.group(1).strip()
+    clean = _IMG_TAG_PAT.sub('', text).strip()
+    return clean, filename
 
 
 def parse_markdown_segments(text):
@@ -1087,7 +1098,8 @@ def get_questoes_xlsx(uploaded_file):
             if len(row) < 6:
                 st.warning(f"Linha {i}: menos de 6 colunas. Ignorando.")
                 continue
-            pergunta         = str(row[0]).strip() if row[0] is not None else ""
+            pergunta_raw     = str(row[0]).strip() if row[0] is not None else ""
+            pergunta, img_inline = parse_img_tags(pergunta_raw)
             resposta_correta = str(row[1]).strip() if row[1] is not None else ""
             distratores = [
                 str(row[j]).strip() if row[j] is not None else ""
@@ -1098,11 +1110,13 @@ def get_questoes_xlsx(uploaded_file):
                 continue
             alternativas = [resposta_correta] + distratores
             questoes.append((pergunta, resposta_correta, *alternativas))
-            # Coluna G (índice 6) — nome do arquivo de imagem (opcional)
+            # Coluna G (índice 6) tem prioridade; [img:] inline é fallback
             if len(row) > 6 and row[6] is not None:
                 nome_img = str(row[6]).strip()
                 if nome_img:
                     imagens[pergunta] = nome_img
+            elif img_inline:
+                imagens[pergunta] = img_inline
         wb.close()
     except Exception as e:
         st.error(f"Erro ao ler questões objetivas: {e}")
@@ -1124,14 +1138,17 @@ def get_questoes_dissertativas_xlsx(uploaded_file):
         for i, row in enumerate(ws.iter_rows(values_only=True), start=1):
             if not row or row[0] is None:
                 continue
-            enunciado = str(row[0]).strip()
+            enunciado_raw = str(row[0]).strip()
+            enunciado, img_inline = parse_img_tags(enunciado_raw)
             if enunciado:
                 questoes.append(enunciado)
-                # Coluna B (índice 1) — nome do arquivo de imagem (opcional)
+                # Coluna B (índice 1) tem prioridade; [img:] inline é fallback
                 if len(row) > 1 and row[1] is not None:
                     nome_img = str(row[1]).strip()
                     if nome_img:
                         imagens[enunciado] = nome_img
+                elif img_inline:
+                    imagens[enunciado] = img_inline
             else:
                 st.warning(f"Linha {i}: enunciado vazio. Ignorando.")
         wb.close()
@@ -2304,8 +2321,8 @@ def main():
         key="imagens_questoes",
         help=(
             "Faça upload dos arquivos de imagem referenciados no XLSX.  \n"
-            "Objetivas: coluna G = nome do arquivo (ex: fig1.png).  \n"
-            "Discursivas: coluna B = nome do arquivo."
+            "**Inline (recomendado):** adicione `[img:nome.png]` ao final do enunciado no XLSX.  \n"
+            "**Coluna dedicada:** Objetivas → coluna G; Discursivas → coluna B."
         ),
     )
 
@@ -2412,6 +2429,15 @@ def main():
 
             # Monta dict {enunciado: bytes} — combina XLSX + IA (XLSX tem prioridade)
             imagens_mapa = {**imagens_obj, **imagens_dis}
+            if imagens_mapa and uploaded_images is not None:
+                faltando = [fname for fname in imagens_mapa.values() if fname not in uploaded_images]
+                if faltando:
+                    st.warning(
+                        f"Imagem(ns) referenciada(s) mas não encontrada(s): "
+                        f"**{', '.join(faltando)}**. "
+                        "Faça o upload ou remova a tag `[img:]` da questão. "
+                        "A prova será gerada sem essas imagens."
+                    )
             imagens_xlsx = {
                 enunc: uploaded_images[fname]
                 for enunc, fname in imagens_mapa.items()
