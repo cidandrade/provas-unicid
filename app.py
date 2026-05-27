@@ -1414,7 +1414,7 @@ def _ui_importar_ia():
             "Formatos aceitos: **.docx** · **.xlsx** · **.txt** · **.gs** (Apps Script) · **.json** (Google Forms API/export)."
         )
 
-        col_key, col_openai, col_tipo = st.columns([2, 2, 1])
+        col_key, col_tipo = st.columns([2, 1])
         with col_key:
             api_key_input = st.text_input(
                 "Chave API Anthropic",
@@ -1423,20 +1423,10 @@ def _ui_importar_ia():
                 key=f"api_key_widget_{st.session_state['api_key_run_id']}",
                 help="Usada somente nesta chamada. Apagada automaticamente após o processamento.",
             )
-        with col_openai:
-            openai_key_input = st.text_input(
-                "Chave API OpenAI (DALL-E)",
-                type="password",
-                placeholder="sk-...",
-                key=f"openai_key_widget_{st.session_state['api_key_run_id']}",
-                help="Opcional. Necessária para sugerir e gerar imagens com DALL-E 3.",
-            )
 
-        # Persiste ambas as chaves na sessão enquanto o usuário as digitar
+        # Persiste a chave na sessão enquanto o usuário a digitar
         if api_key_input.strip():
             st.session_state["anthropic_key_salva"] = api_key_input.strip()
-        if openai_key_input.strip():
-            st.session_state["openai_key_salva"] = openai_key_input.strip()
         with col_tipo:
             tipo_extracao = st.selectbox(
                 "Extrair",
@@ -1640,135 +1630,6 @@ def _ui_importar_ia():
                                 st.session_state["ia_dis_ok"][i] = not dis_ok[i]
                                 st.rerun()
 
-            # --- Painel de imagens DALL-E ---
-            st.divider()
-            _openai_key_atual   = st.session_state.get("openai_key_salva", "")
-            _anthropic_key_img  = st.session_state.get("anthropic_key_salva", "")
-
-            with st.expander("Imagens com DALL-E 3 (opcional)", expanded=bool(st.session_state.get("ia_imgs_preview") or st.session_state.get("ia_imgs_prompts"))):
-                st.caption(
-                    "**Passo 1** — Claude sugere quais questões se beneficiam de imagem e gera os prompts.  \n"
-                    "**Passo 2** — DALL-E 3 gera cada imagem. Você pode regenerar sem repetir o Passo 1."
-                )
-
-                if not OPENAI_DISPONIVEL:
-                    st.warning("Pacote `openai` não instalado. Execute: `pip install openai`")
-                else:
-                    _obj_aprov_img = [q for q, ok in zip(obj_prev, obj_ok) if ok]
-                    _dis_aprov_img = [q for q, ok in zip(dis_prev, dis_ok) if ok]
-                    _n_aprov_img   = len(_obj_aprov_img) + len(_dis_aprov_img)
-                    _prompts_salvos = st.session_state.get("ia_imgs_prompts", {})
-                    _preview_atual  = st.session_state.get("ia_imgs_preview", {})
-                    _erros_salvos   = st.session_state.get("ia_imgs_erros", {})   # {enunc: True}
-                    _n_com_erro     = len(_erros_salvos)
-
-                    # --- Passo 1: sugerir prompts com Claude ---
-                    col_p1, col_p2 = st.columns(2)
-                    with col_p1:
-                        _btn_sugerir = st.button(
-                            f"Passo 1 — Sugerir prompts ({_n_aprov_img} questões)",
-                            key="btn_sugerir_prompts",
-                            help="Requer chave Anthropic. Só precisa rodar uma vez.",
-                            disabled=not _anthropic_key_img,
-                        )
-                    with col_p2:
-                        _tem_prompts  = bool(_prompts_salvos)
-                        _n_pendentes  = sum(1 for e in _prompts_salvos if e not in _preview_atual or e in _erros_salvos)
-                        _label_p2 = (
-                            f"Passo 2 — Regenerar com falha ({_n_com_erro})" if _n_com_erro
-                            else f"Passo 2 — Gerar imagens ({len(_prompts_salvos)} prompts)"
-                        )
-                        _btn_gerar = st.button(
-                            _label_p2,
-                            key="btn_gerar_dalle",
-                            help="Usa os prompts já gerados no Passo 1. Requer chave OpenAI.",
-                            disabled=not (_tem_prompts and _openai_key_atual),
-                        )
-
-                    if not _anthropic_key_img and not _prompts_salvos:
-                        st.info("Insira a Chave API Anthropic e clique em Passo 1 para começar.")
-                    if not _openai_key_atual:
-                        st.info("Insira a Chave API OpenAI (DALL-E) acima para habilitar o Passo 2.")
-
-                    # Executa Passo 1
-                    if _btn_sugerir:
-                        with st.spinner("Claude gerando prompts de imagem para cada questão..."):
-                            try:
-                                _pm, _err_p = _gerar_prompts_imagem_claude(
-                                    _obj_aprov_img, _dis_aprov_img, _anthropic_key_img
-                                )
-                            except Exception as _ex_p1:
-                                _pm, _err_p = None, str(_ex_p1)
-                        if _err_p:
-                            st.error(f"Erro ao gerar prompts: {_err_p}")
-                        else:
-                            st.session_state["ia_imgs_prompts"] = _pm
-                            st.session_state["ia_imgs_erros"]   = {}  # limpa erros anteriores
-                            n_pm = len(_pm)
-                            st.success(f"{n_pm} prompt(s) gerado(s). Clique em **Passo 2** para criar as imagens.")
-                            st.rerun()
-
-                    # Executa Passo 2 (geração DALL-E) — só processa pendentes/com erro
-                    if _btn_gerar and _prompts_salvos and _openai_key_atual:
-                        _preview_novo  = dict(_preview_atual)
-                        _erros_novo    = {}
-                        _erros_msg_novo = {}
-                        _ok_imgs       = dict(st.session_state.get("ia_imgs_ok", {}))
-                        _pendentes = {
-                            e: p for e, p in _prompts_salvos.items()
-                            if e not in _preview_atual or e in _erros_salvos
-                        }
-                        _n_pend = len(_pendentes)
-                        if _n_pend == 0:
-                            st.info("Todas as imagens já foram geradas com sucesso.")
-                        else:
-                            _prog = st.progress(0, text=f"Gerando {_n_pend} imagem(ns) com DALL-E 3...")
-                            for _pi, (_enunc, _dalle_p) in enumerate(_pendentes.items()):
-                                _prog.progress((_pi + 1) / _n_pend,
-                                               text=f"Gerando imagem {_pi+1}/{_n_pend}...")
-                                _img_b, _err_i = _gerar_imagem_dalle(_dalle_p, _openai_key_atual)
-                                if _img_b:
-                                    _preview_novo[_enunc] = _img_b
-                                    _ok_imgs[_enunc] = _ok_imgs.get(_enunc, True)
-                                else:
-                                    _erros_novo[_enunc] = True
-                                    _erros_msg_novo[_enunc] = str(_err_i)
-                            _prog.empty()
-                            st.session_state["ia_imgs_preview"]  = _preview_novo
-                            st.session_state["ia_imgs_ok"]       = _ok_imgs
-                            st.session_state["ia_imgs_erros"]    = _erros_novo
-                            st.session_state["ia_imgs_erros_msg"] = _erros_msg_novo
-                            st.rerun()
-
-                    # Exibe erros persistentes
-                    _erros_msg_salvos = st.session_state.get("ia_imgs_erros_msg", {})
-                    if _erros_msg_salvos:
-                        for _enunc_err, _msg_err in _erros_msg_salvos.items():
-                            st.error(f"**Falha ao gerar imagem:** {_msg_err}  \n`Questão: {_enunc_err[:120]}`")
-
-                    # Galeria de prévia
-                    if _preview_atual:
-                        _ok_imgs_atual = st.session_state.get("ia_imgs_ok", {})
-                        n_geradas = len(_preview_atual)
-                        n_erros   = len(_erros_salvos)
-                        st.markdown(f"**{n_geradas} gerada(s)** · {n_erros} com falha — aprove ou rejeite cada imagem:")
-                        for _enunc_img, _img_b in _preview_atual.items():
-                            with st.container(border=True):
-                                c_img, c_info = st.columns([0.45, 0.55])
-                                with c_img:
-                                    st.image(_img_b, use_container_width=True)
-                                with c_info:
-                                    _aprovada = _ok_imgs_atual.get(_enunc_img, True)
-                                    st.markdown(
-                                        f"<span style='color:{'green' if _aprovada else 'red'};font-size:1.2rem'>"
-                                        f"{'✅ Aprovada' if _aprovada else '❌ Rejeitada'}</span>",
-                                        unsafe_allow_html=True,
-                                    )
-                                    st.caption(_enunc_img[:200])
-                                    _label_img = "Rejeitar" if _aprovada else "Aprovar"
-                                    if st.button(_label_img, key=f"tog_img_{hash(_enunc_img) % 99999}"):
-                                        st.session_state["ia_imgs_ok"][_enunc_img] = not _aprovada
-                                        st.rerun()
 
             st.divider()
             col_usar, col_limpar = st.columns(2)
@@ -1787,20 +1648,12 @@ def _ui_importar_ia():
                     st.session_state["ia_obj_ok"]  = [True] * len(st.session_state["ia_obj"])
                     st.session_state["ia_dis_ok"]  = [True] * len(st.session_state["ia_dis"])
                     st.session_state["ia_confirmadas"] = True
-                    # Salva imagens aprovadas: {enunciado: bytes}
-                    _prev = st.session_state.get("ia_imgs_preview", {})
-                    _ok_i = st.session_state.get("ia_imgs_ok", {})
-                    st.session_state["ia_imgs"] = {
-                        enunc: b for enunc, b in _prev.items() if _ok_i.get(enunc, True)
-                    }
                     st.rerun()
             with col_limpar:
                 if st.button("Descartar tudo", key="btn_limpar_ia"):
                     for k in ("ia_obj", "ia_dis", "ia_dis_gab", "ia_obj_ok",
                               "ia_dis_ok", "ia_confirmadas", "ia_texto_doc",
-                              "ia_imgs", "ia_imgs_preview", "ia_imgs_ok",
-                              "ia_imgs_prompts", "ia_imgs_erros",
-                              "openai_key_salva"):
+                              "anthropic_key_salva"):
                         if k in st.session_state:
                             del st.session_state[k]
                     st.rerun()
@@ -1828,6 +1681,268 @@ def _ui_importar_ia():
                 st.info(
                     "**Dica de variedade entre versões:** " + " | ".join(avisos)
                 )
+
+
+def _ler_enunciados_xlsx_obj(arquivo):
+    """Retorna lista de tuplas (enunciado,) lendo apenas coluna A do XLSX de objetivas."""
+    if arquivo is None:
+        return []
+    try:
+        wb = openpyxl.load_workbook(arquivo, read_only=True, data_only=True)
+        ws = wb.active
+        result = []
+        for row in ws.iter_rows(values_only=True):
+            if row and row[0] is not None:
+                raw = str(row[0]).strip()
+                clean, _ = parse_img_tags(raw)
+                if clean:
+                    result.append((clean,))
+        wb.close()
+    except Exception:
+        result = []
+    try:
+        arquivo.seek(0)
+    except Exception:
+        pass
+    return result
+
+
+def _ler_enunciados_xlsx_dis(arquivo):
+    """Retorna lista de strings lendo apenas coluna A do XLSX de dissertativas."""
+    if arquivo is None:
+        return []
+    try:
+        wb = openpyxl.load_workbook(arquivo, read_only=True, data_only=True)
+        ws = wb.active
+        result = []
+        for row in ws.iter_rows(values_only=True):
+            if row and row[0] is not None:
+                raw = str(row[0]).strip()
+                clean, _ = parse_img_tags(raw)
+                if clean:
+                    result.append(clean)
+        wb.close()
+    except Exception:
+        result = []
+    try:
+        arquivo.seek(0)
+    except Exception:
+        pass
+    return result
+
+
+def _ui_dalle_imagens(arquivo_obj, arquivo_dis):
+    """
+    Expander independente para geração de imagens ilustrativas com DALL-E 3.
+    Usa questões confirmadas via IA (se disponíveis) ou lê enunciados do XLSX carregado.
+    """
+    with st.expander(
+        "Imagens ilustrativas com DALL-E 3 (opcional)",
+        expanded=bool(st.session_state.get("ia_imgs_preview") or st.session_state.get("ia_imgs_prompts")),
+    ):
+        if not ANTHROPIC_DISPONIVEL or not OPENAI_DISPONIVEL:
+            falt = []
+            if not ANTHROPIC_DISPONIVEL:
+                falt.append("`pip install anthropic`")
+            if not OPENAI_DISPONIVEL:
+                falt.append("`pip install openai`")
+            st.warning("Pacotes necessários não instalados. Execute: " + " · ".join(falt))
+            return
+
+        st.caption(
+            "**Passo 1** — Claude analisa as questões e gera prompts descritivos para o DALL-E.  \n"
+            "**Passo 2** — DALL-E 3 gera cada imagem. Você pode regenerar sem repetir o Passo 1."
+        )
+
+        # --- Chaves API ---
+        col_ant, col_oai = st.columns(2)
+        with col_ant:
+            _ant_salva = st.session_state.get("anthropic_key_salva", "")
+            if not _ant_salva:
+                _ant_inp = st.text_input(
+                    "Chave API Anthropic",
+                    type="password",
+                    placeholder="sk-ant-...",
+                    key="dalle_anthropic_key",
+                    help="Necessária para o Passo 1 (sugerir prompts).",
+                )
+                if _ant_inp.strip():
+                    st.session_state["anthropic_key_salva"] = _ant_inp.strip()
+            else:
+                st.caption("Chave Anthropic já configurada.")
+        with col_oai:
+            _oai_inp = st.text_input(
+                "Chave API OpenAI (DALL-E)",
+                type="password",
+                placeholder="sk-...",
+                key="dalle_openai_key",
+                help="Necessária para o Passo 2 (gerar imagens).",
+            )
+            if _oai_inp.strip():
+                st.session_state["openai_key_salva"] = _oai_inp.strip()
+        _openai_key_atual  = st.session_state.get("openai_key_salva", "")
+        _anthropic_key_img = st.session_state.get("anthropic_key_salva", "")
+
+        # --- Fonte das questões ---
+        _ia_conf = st.session_state.get("ia_confirmadas", False)
+        if _ia_conf:
+            _obj_fonte = st.session_state.get("ia_obj", [])
+            _dis_fonte = st.session_state.get("ia_dis", [])
+            st.caption(
+                f"Fonte: questões confirmadas via IA "
+                f"({len(_obj_fonte)} obj · {len(_dis_fonte)} dis)"
+            )
+        else:
+            _obj_fonte = _ler_enunciados_xlsx_obj(arquivo_obj)
+            _dis_fonte = _ler_enunciados_xlsx_dis(arquivo_dis)
+            if _obj_fonte or _dis_fonte:
+                st.caption(
+                    f"Fonte: XLSX carregado "
+                    f"({len(_obj_fonte)} obj · {len(_dis_fonte)} dis)"
+                )
+            else:
+                st.info(
+                    "Carregue um XLSX de objetivas ou discursivas acima, "
+                    "ou importe questões via IA, para habilitar a geração de imagens."
+                )
+                return
+
+        _n_questoes     = len(_obj_fonte) + len(_dis_fonte)
+        _prompts_salvos = st.session_state.get("ia_imgs_prompts", {})
+        _preview_atual  = st.session_state.get("ia_imgs_preview", {})
+        _erros_salvos   = st.session_state.get("ia_imgs_erros", {})
+        _n_com_erro     = len(_erros_salvos)
+
+        # --- Botões Passo 1 e Passo 2 ---
+        col_p1, col_p2 = st.columns(2)
+        with col_p1:
+            _btn_sugerir = st.button(
+                f"Passo 1 — Sugerir prompts ({_n_questoes} questões)",
+                key="btn_sugerir_prompts",
+                help="Requer chave Anthropic. Só precisa rodar uma vez.",
+                disabled=not _anthropic_key_img,
+            )
+        with col_p2:
+            _tem_prompts = bool(_prompts_salvos)
+            _label_p2 = (
+                f"Passo 2 — Regenerar com falha ({_n_com_erro})" if _n_com_erro
+                else f"Passo 2 — Gerar imagens ({len(_prompts_salvos)} prompts)"
+            )
+            _btn_gerar = st.button(
+                _label_p2,
+                key="btn_gerar_dalle",
+                help="Usa os prompts já gerados no Passo 1. Requer chave OpenAI.",
+                disabled=not (_tem_prompts and _openai_key_atual),
+            )
+
+        if not _anthropic_key_img and not _prompts_salvos:
+            st.info("Insira a Chave API Anthropic e clique em Passo 1 para começar.")
+        if not _openai_key_atual:
+            st.info("Insira a Chave API OpenAI (DALL-E) acima para habilitar o Passo 2.")
+
+        # Executa Passo 1
+        if _btn_sugerir:
+            with st.spinner("Claude gerando prompts de imagem para cada questão..."):
+                try:
+                    _pm, _err_p = _gerar_prompts_imagem_claude(
+                        _obj_fonte, _dis_fonte, _anthropic_key_img
+                    )
+                except Exception as _ex_p1:
+                    _pm, _err_p = None, str(_ex_p1)
+            if _err_p:
+                st.error(f"Erro ao gerar prompts: {_err_p}")
+            else:
+                st.session_state["ia_imgs_prompts"] = _pm
+                st.session_state["ia_imgs_erros"]   = {}
+                st.success(f"{len(_pm)} prompt(s) gerado(s). Clique em **Passo 2** para criar as imagens.")
+                st.rerun()
+
+        # Executa Passo 2 — só processa pendentes/com erro
+        if _btn_gerar and _prompts_salvos and _openai_key_atual:
+            _preview_novo   = dict(_preview_atual)
+            _erros_novo     = {}
+            _erros_msg_novo = {}
+            _ok_imgs        = dict(st.session_state.get("ia_imgs_ok", {}))
+            _pendentes = {
+                e: p for e, p in _prompts_salvos.items()
+                if e not in _preview_atual or e in _erros_salvos
+            }
+            _n_pend = len(_pendentes)
+            if _n_pend == 0:
+                st.info("Todas as imagens já foram geradas com sucesso.")
+            else:
+                _prog = st.progress(0, text=f"Gerando {_n_pend} imagem(ns) com DALL-E 3...")
+                for _pi, (_enunc, _dalle_p) in enumerate(_pendentes.items()):
+                    _prog.progress((_pi + 1) / _n_pend, text=f"Gerando imagem {_pi+1}/{_n_pend}...")
+                    _img_b, _err_i = _gerar_imagem_dalle(_dalle_p, _openai_key_atual)
+                    if _img_b:
+                        _preview_novo[_enunc] = _img_b
+                        _ok_imgs[_enunc] = _ok_imgs.get(_enunc, True)
+                    else:
+                        _erros_novo[_enunc] = True
+                        _erros_msg_novo[_enunc] = str(_err_i)
+                _prog.empty()
+                st.session_state["ia_imgs_preview"]   = _preview_novo
+                st.session_state["ia_imgs_ok"]        = _ok_imgs
+                st.session_state["ia_imgs_erros"]     = _erros_novo
+                st.session_state["ia_imgs_erros_msg"] = _erros_msg_novo
+                st.rerun()
+
+        # Erros persistentes
+        _erros_msg_salvos = st.session_state.get("ia_imgs_erros_msg", {})
+        if _erros_msg_salvos:
+            for _enunc_err, _msg_err in _erros_msg_salvos.items():
+                st.error(f"**Falha ao gerar imagem:** {_msg_err}  \n`Questão: {_enunc_err[:120]}`")
+
+        # Galeria de prévia
+        if _preview_atual:
+            _ok_imgs_atual = st.session_state.get("ia_imgs_ok", {})
+            n_geradas = len(_preview_atual)
+            n_erros   = len(_erros_salvos)
+            st.markdown(f"**{n_geradas} gerada(s)** · {n_erros} com falha — aprove ou rejeite cada imagem:")
+            for _enunc_img, _img_b in _preview_atual.items():
+                with st.container(border=True):
+                    c_img, c_info = st.columns([0.45, 0.55])
+                    with c_img:
+                        st.image(_img_b, use_container_width=True)
+                    with c_info:
+                        _aprovada = _ok_imgs_atual.get(_enunc_img, True)
+                        st.markdown(
+                            f"<span style='color:{'green' if _aprovada else 'red'};font-size:1.2rem'>"
+                            f"{'✅ Aprovada' if _aprovada else '❌ Rejeitada'}</span>",
+                            unsafe_allow_html=True,
+                        )
+                        st.caption(_enunc_img[:200])
+                        _label_img = "Rejeitar" if _aprovada else "Aprovar"
+                        if st.button(_label_img, key=f"tog_img_{hash(_enunc_img) % 99999}"):
+                            st.session_state["ia_imgs_ok"][_enunc_img] = not _aprovada
+                            st.rerun()
+
+            st.divider()
+            col_usar, col_limpar = st.columns(2)
+            with col_usar:
+                _ok_i = st.session_state.get("ia_imgs_ok", {})
+                n_aprov_imgs = sum(1 for e in _preview_atual if _ok_i.get(e, True))
+                if st.button(
+                    f"Usar imagens aprovadas ({n_aprov_imgs})",
+                    type="primary", key="btn_usar_imgs"
+                ):
+                    st.session_state["ia_imgs"] = {
+                        enunc: b for enunc, b in _preview_atual.items() if _ok_i.get(enunc, True)
+                    }
+                    st.rerun()
+            with col_limpar:
+                if st.button("Descartar imagens", key="btn_limpar_imgs"):
+                    for k in ("ia_imgs", "ia_imgs_preview", "ia_imgs_ok",
+                              "ia_imgs_prompts", "ia_imgs_erros", "ia_imgs_erros_msg",
+                              "openai_key_salva"):
+                        if k in st.session_state:
+                            del st.session_state[k]
+                    st.rerun()
+
+        if st.session_state.get("ia_imgs"):
+            n_imgs = len(st.session_state["ia_imgs"])
+            st.success(f"{n_imgs} imagem(ns) aprovada(s) — serão inseridas na prova.")
 
 
 _EVIDENCIAS = os.path.join(BASE_DIR, "Evidencias_manual_ProvaRegimental")
@@ -2320,22 +2435,25 @@ def main():
         accept_multiple_files=True,
         key="imagens_questoes",
         help=(
-            "Para incluir uma imagem em uma questão, você tem três opções:  \n\n"
+            "Para incluir uma imagem em uma questão, você tem duas opções:  \n\n"
             "**1. Tag inline no XLSX (mais simples):** escreva `[img:nome.png]` "
             "em qualquer ponto do enunciado na coluna A. "
             "A tag é removida do texto da prova e a imagem aparece logo abaixo da questão.  \n\n"
             "**2. Coluna dedicada no XLSX:** informe só o nome do arquivo — "
             "coluna G para objetivas, coluna B para discursivas.  \n\n"
-            "**3. DALL-E 3 (geração automática, sem upload):** abra o painel "
-            "\"Importar documento não estruturado via IA\" (acima desta seção) "
-            "e use a subseção \"Imagens com DALL-E 3\" para gerar imagens "
-            "ilustrativas automaticamente a partir dos enunciados."
+            "Para gerar imagens automaticamente via DALL-E 3, use o painel "
+            "\"Imagens ilustrativas com DALL-E 3\" logo abaixo."
         ),
     )
 
     st.divider()
 
-    # 10. Botão de geração
+    # 10. Imagens com DALL-E 3 (opcional, independente da importação de documentos)
+    _ui_dalle_imagens(arquivo_objetivas, arquivo_dissertativas)
+
+    st.divider()
+
+    # 11. Botão de geração
     gerar = st.button("Gerar Provas", type="primary", use_container_width=True)
 
     if gerar:
