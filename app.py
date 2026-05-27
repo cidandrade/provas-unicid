@@ -2326,9 +2326,10 @@ def main():
             "A tag é removida do texto da prova e a imagem aparece logo abaixo da questão.  \n\n"
             "**2. Coluna dedicada no XLSX:** informe só o nome do arquivo — "
             "coluna G para objetivas, coluna B para discursivas.  \n\n"
-            "**3. DALL-E 3 (geração automática):** use a seção "
-            "\"Imagens com DALL-E 3\" acima para gerar imagens ilustrativas "
-            "automaticamente a partir do enunciado, sem precisar de arquivos externos."
+            "**3. DALL-E 3 (geração automática, sem upload):** abra o painel "
+            "\"Importar documento não estruturado via IA\" (acima desta seção) "
+            "e use a subseção \"Imagens com DALL-E 3\" para gerar imagens "
+            "ilustrativas automaticamente a partir dos enunciados."
         ),
     )
 
