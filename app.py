@@ -1984,7 +1984,8 @@ produzindo múltiplas versões embaralhadas de uma mesma prova para garantir int
 | Navegador atualizado | Chrome, Edge, Firefox ou Safari |
 | Conexão com internet | Necessária para acessar o sistema e para o fluxo via IA |
 | LibreOffice ou Microsoft Word | Necessário **apenas** para geração de PDF — LibreOffice (Linux/Streamlit Cloud) ou Word (Windows/Mac) |
-| Chave da API Anthropic | Necessária **apenas** para o fluxo de importação via IA |
+| Chave da API Anthropic | Necessária **apenas** para o fluxo de importação via IA e para o Passo 1 (prompts) do DALL-E |
+| Chave da API OpenAI | Necessária **apenas** para geração de imagens via DALL-E 3 (Passo 2) |
 
 > O sistema roda integralmente na nuvem — nenhum software adicional precisa ser instalado pelo usuário.
 """)
@@ -2004,12 +2005,16 @@ Acesse pelo navegador, sem instalação:
     st.subheader("4. Visão Geral da Interface")
     _img("Carregamento de questões com ou sem IA.png")
     st.markdown("""
-A interface divide-se em dois painéis lado a lado:
+A interface divide-se em dois painéis lado a lado, com expanders opcionais acima e abaixo:
 
 - **Painel esquerdo:** configurações da prova (tipo, gabarito, versões, professor, disciplina, pontuação).
 - **Painel direito:** carregamento de questões (XLSX ou via IA).
 
-Acima dos painéis: o expander **"Importar documento não estruturado via IA"** (opcional).
+**Expanders opcionais (acima dos painéis):**
+- **"Importar documento não estruturado via IA"** — extrai questões de documentos via Claude.
+
+**Entre o uploader de imagens e o botão Gerar Provas:**
+- **"Imagens ilustrativas com DALL-E 3"** — gera imagens para as questões via DALL-E 3 (independente da importação de documentos).
 """)
 
     # 5. Fluxo XLSX
@@ -2033,12 +2038,25 @@ Indicado quando o professor já possui as questões organizadas em planilha.
 | A | Enunciado |
 | B | Resposta correta |
 | C–F | Distratores (4 alternativas incorretas) |
+| G | Nome do arquivo de imagem (opcional — ex: `grafico.png`) |
 
 **Formato — Questões Discursivas:**
 
 | Coluna | Conteúdo |
 |---|---|
 | A | Enunciado |
+| B | Nome do arquivo de imagem (opcional) |
+
+**Imagem inline no enunciado (alternativa à coluna dedicada):**
+
+Escreva `[img:nome.png]` em qualquer ponto do enunciado na coluna A.
+A tag é removida do texto da prova e a imagem é inserida logo abaixo da questão.
+
+```
+Analise o gráfico abaixo e responda. [img:grafico_pib.png]
+```
+
+Faça upload dos arquivos de imagem no campo **"Imagens das questões"**.
 
 **Formatação de texto nas células:**
 
@@ -2078,13 +2096,62 @@ Use **Regenerar não confirmadas** para pedir uma nova tentativa só para as rej
     _img("Confirmação_dos dados.png")
     st.markdown("""
 - **Usar questões aprovadas** — confirma o pool e habilita a geração.
-- **Descartar tudo** — remove tudo e permite recomeçar.
+- **Descartar tudo** — remove as questões importadas e a chave Anthropic da sessão.
 
 > A chave da API **não é salva** — é descartada após cada processamento.
+> As imagens DALL-E são gerenciadas separadamente no painel **"Imagens ilustrativas com DALL-E 3"**.
 """)
 
-    # 7. Configurações
-    st.subheader("7. Configurações da Prova")
+    # 7. Imagens
+    st.subheader("7. Imagens nas Questões")
+    st.markdown("""
+Você pode incluir imagens em questões de três formas independentes:
+
+---
+
+**Opção 1 — Tag inline no XLSX (mais simples)**
+
+Escreva `[img:nome_do_arquivo.png]` diretamente no enunciado da questão (coluna A).
+O sistema remove a tag do texto impresso e insere a imagem centralizada logo abaixo da questão.
+
+```
+Q: Observe o diagrama. [img:diagrama_celula.png]
+```
+
+Faça o upload do arquivo no campo **"Imagens das questões"**.
+
+---
+
+**Opção 2 — Coluna dedicada no XLSX**
+
+Informe apenas o nome do arquivo em uma coluna separada:
+- Objetivas → coluna **G**
+- Discursivas → coluna **B**
+
+Faça o upload do arquivo no campo **"Imagens das questões"**.
+
+---
+
+**Opção 3 — Geração automática com DALL-E 3**
+
+Use o painel **"Imagens ilustrativas com DALL-E 3"** (entre o uploader de imagens e o botão Gerar Provas).
+Funciona com questões de qualquer fonte — XLSX carregado ou questões importadas via IA.
+
+**Passo a passo:**
+1. Carregue o XLSX de questões (ou importe via IA e confirme as questões).
+2. No painel DALL-E, insira as chaves API (**Anthropic** para o Passo 1, **OpenAI** para o Passo 2).
+3. **Passo 1** — Claude analisa cada questão e gera um prompt descritivo para o DALL-E.
+4. **Passo 2** — DALL-E 3 gera as imagens a partir dos prompts.
+5. Revise a galeria: **✅ Aprovar** ou **❌ Rejeitar** cada imagem individualmente.
+6. Clique em **Usar imagens aprovadas** para confirmar a seleção.
+
+> As imagens aparecem automaticamente abaixo de cada questão no DOCX gerado.
+> Você pode regenerar imagens com falha sem repetir o Passo 1.
+> **"Descartar imagens"** remove apenas as imagens, sem afetar as questões.
+""")
+
+    # 8. Configurações
+    st.subheader("8. Configurações da Prova")
     _img("Configurações Finais para gerar as provas.png")
     st.markdown("""
 | Configuração | Descrição |
@@ -2102,8 +2169,8 @@ Use **Regenerar não confirmadas** para pedir uma nova tentativa só para as rej
 - Discursivas: 3,00 pts ÷ nº de questões = **1,00 pt** (3 dis) ou **1,50 pt** (2 dis)
 """)
 
-    # 8. Geração e download
-    st.subheader("8. Geração e Download")
+    # 9. Geração e download
+    st.subheader("9. Geração e Download")
     st.markdown("""
 Após configurar, clique em **Gerar Provas**. O ZIP baixado contém:
 
@@ -2117,24 +2184,28 @@ Após configurar, clique em **Gerar Provas**. O ZIP baixado contém:
 - Quebra para nova página, questões discursivas em **1 coluna** com linhas de resposta.
 """)
 
-    # 9. Dicas
-    st.subheader("9. Dicas de Uso")
+    # 10. Dicas
+    st.subheader("10. Dicas de Uso")
     st.markdown("""
 - Inclua **o dobro de questões** do necessário na planilha para maximizar a variação entre versões.
 - Ao usar a IA, prefira documentos com enunciados **numerados e bem delimitados**.
 - **Revise o gabarito** após cada geração — o embaralhamento muda a ordem das respostas.
-- Salve sua chave da API em um **gerenciador de senhas**; o sistema não a armazena.
+- Salve suas chaves de API em um **gerenciador de senhas**; o sistema não as armazena.
 - Faça um **teste com 1 versão** antes de gerar o conjunto completo para validar o layout.
+- Para questões com **gráficos ou figuras**, use a tag `[img:nome.png]` no enunciado e faça upload da imagem — é o método mais rápido.
+- O DALL-E 3 é indicado para questões **conceituais ou de processos** — evite para questões com gráficos de dados reais (a IA inventará os valores).
 """)
 
-    # 10. Limitações
-    st.subheader("10. Limitações Conhecidas")
+    # 11. Limitações
+    st.subheader("11. Limitações Conhecidas")
     st.markdown("""
 - Geração de PDF requer LibreOffice (Linux/Streamlit Cloud) ou Microsoft Word (Windows/Mac).
 - O fluxo via IA exige internet durante o processamento.
 - A qualidade da extração depende da organização do documento de origem.
 - O sistema não valida academicamente as questões geradas pela IA — revisão é indispensável.
 - Máximo de 8 versões por geração.
+- Imagens DALL-E são **ilustrativas** — não reproduzem gráficos, tabelas ou dados reais do enunciado.
+- Cada chamada ao DALL-E 3 tem custo na API OpenAI; consulte [openai.com/pricing](https://openai.com/pricing).
 """)
 
 
@@ -2158,6 +2229,13 @@ def _ui_faq():
          com a API do Claude (Anthropic) durante o processamento do documento."""),
 
         ("Instalação e Requisitos",
+         "Preciso de uma chave OpenAI para usar o sistema?",
+         """**Não** — a chave OpenAI é necessária **apenas** para gerar imagens via DALL-E 3 (Passo 2).
+         Todo o restante do sistema (questões XLSX, importação via IA, geração de DOCX/PDF)
+         funciona sem ela. A chave Anthropic também é opcional — só necessária para importação de
+         documentos via IA e para o Passo 1 do DALL-E (sugestão de prompts)."""),
+
+        ("Instalação e Requisitos",
          "Quais arquivos de template são necessários?",
          """`Modelo_AR.docx`, `Modelo_ARZ.docx`, `Modelo_AF.docx`, `Modelo_AFZ.docx` —
          todos na mesma pasta do aplicativo. Sem eles, o sistema não consegue gerar as provas.
@@ -2166,7 +2244,8 @@ def _ui_faq():
         ("Planilha XLSX",
          "Qual o formato correto da planilha de questões objetivas?",
          """Cada linha = uma questão. Colunas: **A** = enunciado · **B** = resposta correta ·
-         **C–F** = distratores (4 alternativas incorretas). Sem cabeçalho obrigatório.
+         **C–F** = distratores (4 alternativas incorretas) · **G** = nome do arquivo de imagem (opcional).
+         Sem cabeçalho obrigatório.
          O sistema embaralha as alternativas automaticamente em cada versão."""),
 
         ("Planilha XLSX",
@@ -2218,6 +2297,33 @@ def _ui_faq():
          "Posso combinar IA para discursivas e XLSX para objetivas?",
          """Sim. Selecione **"Discursivas"** no dropdown da IA, aprove as questões
          e faça upload da planilha de objetivas normalmente. O sistema combina os dois."""),
+
+        ("Imagens nas Questões",
+         "Como inserir uma imagem em uma questão?",
+         """Há três formas:
+         1. **Tag inline (mais simples):** escreva `[img:nome.png]` no enunciado da questão no XLSX.
+         A tag é removida do texto impresso e a imagem aparece logo abaixo da questão.
+         Faça upload do arquivo no campo "Imagens das questões".
+         2. **Coluna dedicada:** informe o nome do arquivo na coluna **G** (objetivas) ou **B** (discursivas).
+         3. **DALL-E 3:** use o painel "Imagens ilustrativas com DALL-E 3" para gerar imagens automaticamente."""),
+
+        ("Imagens nas Questões",
+         "Posso usar o DALL-E sem ter importado um documento via IA?",
+         """Sim. O painel DALL-E é completamente independente do expander de importação de documentos.
+         Basta carregar o XLSX de questões normalmente — o DALL-E lê os enunciados diretamente do arquivo.
+         Se as questões vieram da importação via IA, o DALL-E também as usa automaticamente."""),
+
+        ("Imagens nas Questões",
+         "O DALL-E gera imagens para todas as questões?",
+         """O Claude analisa cada questão no Passo 1 e gera um prompt para todas.
+         Após o Passo 2, você vê uma galeria e decide individualmente o que aprovar ou rejeitar.
+         Somente as imagens aprovadas são inseridas na prova."""),
+
+        ("Imagens nas Questões",
+         "O DALL-E é adequado para questões com gráficos de dados reais?",
+         """**Não.** O DALL-E gera imagens **ilustrativas** — ele não reproduz dados reais,
+         tabelas ou gráficos específicos do enunciado. Para questões que exigem um gráfico real,
+         use a tag `[img:nome.png]` e faça upload da imagem correta."""),
 
         ("Configuração e Geração",
          "Quantas versões posso gerar?",
