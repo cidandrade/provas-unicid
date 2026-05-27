@@ -2320,9 +2320,15 @@ def main():
         accept_multiple_files=True,
         key="imagens_questoes",
         help=(
-            "Faça upload dos arquivos de imagem referenciados no XLSX.  \n"
-            "**Inline (recomendado):** adicione `[img:nome.png]` ao final do enunciado no XLSX.  \n"
-            "**Coluna dedicada:** Objetivas → coluna G; Discursivas → coluna B."
+            "Para incluir uma imagem em uma questão, você tem três opções:  \n\n"
+            "**1. Tag inline no XLSX (mais simples):** escreva `[img:nome.png]` "
+            "em qualquer ponto do enunciado na coluna A. "
+            "A tag é removida do texto da prova e a imagem aparece logo abaixo da questão.  \n\n"
+            "**2. Coluna dedicada no XLSX:** informe só o nome do arquivo — "
+            "coluna G para objetivas, coluna B para discursivas.  \n\n"
+            "**3. DALL-E 3 (geração automática):** use a seção "
+            "\"Imagens com DALL-E 3\" acima para gerar imagens ilustrativas "
+            "automaticamente a partir do enunciado, sem precisar de arquivos externos."
         ),
     )
 
