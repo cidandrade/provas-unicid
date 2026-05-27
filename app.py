@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Gerador de Provas Unicid - Versão Web
-Versão 3.6.3
+Versão 3.6.4
 Gera provas com questões de múltipla escolha e dissertativas,
 já no formato da Unicid
 
@@ -23,6 +23,9 @@ Este programa é Software Livre licenciado sob a GPL v3+.
 Veja https://www.gnu.org/licenses/ para mais detalhes.
 
 ChangeLog
+3.6.4 maio/2026: Separa DALL-E em expander independente; aceita questões de XLSX
+                  ou de importação via IA como fonte; chave OpenAI movida para
+                  o painel de imagens; tag [img:nome] inline no enunciado do XLSX
 3.6.3 maio/2026: Geração de imagens ilustrativas via DALL-E 3 (opcional); upload
                   manual de imagens; fluxo de aprovação pelo professor antes de
                   inserir no DOCX; ajuste no nº de questões geradas por chamada IA
@@ -1957,7 +1960,7 @@ def _img(nome):
 
 def _ui_manual():
     st.header("Manual do Usuário")
-    st.caption("Versão 3.6.3 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
+    st.caption("Versão 3.6.4 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
     st.divider()
 
     # 1. Introdução
@@ -2286,7 +2289,7 @@ def main():
     )
 
     st.title("Gerador de Provas Unicid")
-    st.caption("Versão 3.6.3 · Prof.Me. Cid R. Andrade · profandrade@gmail.com · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
+    st.caption("Versão 3.6.4 · Prof.Me. Cid R. Andrade · profandrade@gmail.com · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
 
     tab_ger, tab_man, tab_faq = st.tabs(["🏠 Gerador de Provas", "📖 Manual", "❓ FAQ"])
 
