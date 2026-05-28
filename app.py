@@ -1432,7 +1432,7 @@ def _hidratar_config_do_local_storage(ls):
     _loaded_any = False
     for cfg_key, default in CONFIG_DEFAULTS.items():
         ls_key = _LS_KEYS[cfg_key]
-        val = ls.getItem(ls_key, key=f"_ls_get_{ls_key}") if ls is not None else None
+        val = ls.getItem(ls_key) if ls is not None else None
         if val is not None:
             if isinstance(default, bool):
                 val = val if isinstance(val, bool) else str(val).lower() in ("true", "1")
