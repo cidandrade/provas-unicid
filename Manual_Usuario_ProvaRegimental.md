@@ -1,6 +1,6 @@
 # Manual do Usuário — Gerador de Provas Unicid
 
-**Versão do sistema:** 3.6.1
+**Versão do sistema:** 3.7.0
 **Autores:** Cid R Andrade · Co-Autor: Prof. Me. Rafael Cotrin (v3.4.0+)
 
 ---
@@ -44,32 +44,42 @@ Acesse pelo navegador, sem instalação:
 
 ## 4. Visão Geral da Interface
 
-![Interface principal](Evidencias_manual_ProvaRegimental/Carregamento%20de%20questões%20com%20ou%20sem%20IA.png)
+A interface está organizada em **quatro abas** no topo:
 
-A interface está organizada em seções verticais:
+| Aba | O que contém |
+|---|---|
+| 🏠 **Gerador de Provas** | Fluxo principal: tipo, versões, disciplina, questões, imagens e geração |
+| 📖 **Manual** | Esta documentação |
+| ❓ **FAQ** | Perguntas frequentes |
+| ⚙️ **Configurações** | Preferências do professor salvas no navegador (professor, gabarito, discursivas, PDF) |
 
-1. **Tipo de avaliação** — seleção entre AR e AF.
-2. **Tipo de gabarito** — Padrão ou Zipgrade.
-3. **Número de versões** — controle deslizante de 1 a 8.
-4. **Identificação** — campos Professor e Disciplina.
-5. **Carregamento de questões** — upload de XLSX ou painel de importação via IA.
-6. **Configurações finais** — pontuação, espaço dissertativo, opção de PDF e botão de geração.
+### Aba Gerador de Provas
+
+Dentro da aba Gerador, a organização é vertical:
+
+1. **Tipo de avaliação** + **Número de versões** — linha superior.
+2. **Disciplina** — campo de texto.
+3. Sub-abas de origem das questões: **📊 Planilha XLSX** (padrão) ou **🤖 Importar por IA**.
+4. **Incluir imagens nas provas** — checkbox opcional; quando marcado, revela upload manual de imagens e o painel DALL-E.
+5. **Gerar Provas** — botão principal.
+
+> As informações do professor, o tipo de gabarito, o número de questões dissertativas, o espaço de resposta e a opção de PDF são configurados **uma única vez** na aba ⚙️ Configurações e ficam salvos no navegador.
 
 ---
 
 ## 5. Fluxo 1 — Questões via Planilha XLSX
 
-Este é o método tradicional, indicado quando o professor já possui as questões organizadas em planilha.
+Este é o método padrão, indicado quando o professor já possui as questões organizadas em planilha.
 
 ### 5.1 Passo a Passo
 
-1. Selecione o **Tipo de avaliação** (AR ou AF) na parte superior da tela.
-2. Selecione o **Tipo de gabarito** desejado (Padrão ou Zipgrade).
+1. **Na primeira utilização:** abra a aba ⚙️ Configurações, preencha o nome do professor e ajuste as demais preferências. Clique em **💾 Salvar como padrão** — as configurações ficam salvas no navegador.
+2. Selecione o **Tipo de avaliação** (AR ou AF) na aba Gerador.
 3. Ajuste o **Número de versões** com o controle deslizante.
-4. Preencha os campos **Professor** e **Disciplina**.
-5. Na seção de carregamento, faça o upload da **planilha de questões objetivas**.
-6. Se o tipo for AR, faça também o upload da **planilha de questões dissertativas**.
-7. Prossiga para as [Configurações da Prova](#7-configurações-da-prova).
+4. Preencha o campo **Disciplina**.
+5. Na sub-aba **📊 Planilha XLSX**, faça o upload da **planilha de questões objetivas**.
+6. Se o tipo for AR, faça também o upload da **planilha de questões dissertativas** (aparece abaixo do upload de objetivas).
+7. Clique em **Gerar Provas**.
 
 ### 5.2 Formato da Planilha de Questões Objetivas
 
@@ -112,9 +122,9 @@ O sistema reconhece marcações simples para aplicar estilos ao texto das quest�
 
 Este fluxo utiliza a API do **Claude AI (Anthropic)** para extrair e estruturar questões a partir de documentos não estruturados, como slides, apostilas ou listas de exercícios.
 
-![Painel de importação via IA](Evidencias_manual_ProvaRegimental/Esrutura%20com%20IA.png)
-
 > **Custo estimado:** aproximadamente **US$ 0,10 por processamento** (sujeito a variação conforme volume de texto enviado e tabela de preços da Anthropic).
+
+Para acessar este fluxo, clique na sub-aba **🤖 Importar por IA** dentro da aba Gerador.
 
 ### 6.1 Obtendo a Chave da API do Claude
 
@@ -139,7 +149,7 @@ O sistema aceita os seguintes tipos para importação via IA:
 
 ### 6.3 Passo a Passo da Importação
 
-1. No painel **Estrutura com IA**, insira sua **chave da API** no campo indicado.
+1. Clique na sub-aba **🤖 Importar por IA** e insira sua **chave da API** no campo indicado.
 2. Selecione no dropdown **Extrair** o tipo de questão desejado:
    - **Ambas** — extrai objetivas e dissertativas.
    - **Objetivas** — extrai apenas questões de múltipla escolha.
@@ -185,50 +195,42 @@ O sistema informa sobre **diversidade do pool**: quanto maior o número de quest
 
 ## 7. Configurações da Prova
 
-![Configurações finais](Evidencias_manual_ProvaRegimental/Configurações%20Finais%20para%20gerar%20as%20provas.png)
+As configurações estão divididas em duas partes: campos **por prova** (na aba Gerador) e **preferências do professor** (na aba ⚙️ Configurações, salvas no navegador).
 
-### 7.1 Tipo de Avaliação
+### 7.1 Campos por prova (aba Gerador)
 
-| Tipo | Descrição | Questões |
+| Campo | Onde | Descrição |
 |---|---|---|
-| **AR** | Prova Regimental | 8 objetivas + 2 ou 3 dissertativas |
-| **AF** | Prova Final | 20 objetivas |
+| **Tipo de avaliação** | Aba Gerador | AR (8 obj + 2–3 dis) ou AF (20 obj) |
+| **Número de versões** | Aba Gerador | Controle deslizante de 1 a 8 |
+| **Disciplina** | Aba Gerador | Nome da disciplina para o cabeçalho |
 
-### 7.2 Tipo de Gabarito
+### 7.2 Preferências do professor (aba ⚙️ Configurações)
 
-| Opção | Descrição |
+Abra a aba **⚙️ Configurações**, ajuste os campos abaixo e clique em **💾 Salvar como padrão**. As preferências ficam salvas no navegador e são restauradas automaticamente nas próximas sessões.
+
+| Preferência | Descrição |
 |---|---|
-| **Padrão** | Gabarito institucional padrão Unicid |
-| **Zipgrade** | Formato compatível com o aplicativo Zipgrade para correção por leitura óptica |
+| **Nome do professor** | Aparece no cabeçalho de todas as provas |
+| **Tipo de gabarito** | Padrão ou Zipgrade (para leitura óptica) |
+| **Questões discursivas (AR)** | 2 ou 3 questões dissertativas por prova |
+| **Linhas de resposta** | Espaço para resposta manuscrita (4 a 20 linhas) |
+| **Incluir PDF no download** | Gera também versões PDF além do DOCX |
 
-### 7.3 Número de Versões
+> **Nota:** as preferências ficam salvas **neste navegador** e **neste dispositivo**. Em outro computador ou navegador, configure novamente e salve.
 
-Use o controle deslizante para definir quantas versões serão geradas (de 1 a 8). As versões são identificadas pelas letras **A, B, C, D, E, F, G, H**.
+> **Restaurar padrões:** clique em **↺ Restaurar padrão** para voltar a todos os valores iniciais do sistema.
 
-### 7.4 Professor e Disciplina
+### 7.3 Pontuação automática
 
-Preencha os campos de texto com o nome do professor e o nome da disciplina. Essas informações serão inseridas no cabeçalho de todas as versões geradas.
-
-### 7.5 Pontuação
-
-A pontuação é **calculada automaticamente** com base no tipo de avaliação:
+A pontuação é calculada automaticamente com base no tipo de avaliação e no número de dissertativas configurado:
 
 **Para provas AR:**
-- Escolha o número de questões dissertativas: **2** ou **3** (botões de rádio).
-- Valor por questão dissertativa: **1,00 pt** (fixo).
-- Valor por questão objetiva: **0,25 pt** (fixo, total de 8 × 0,25 = 2,00 pts).
-- A linha informativa exibe: `"Valor por questão dissertativa: 1,00 pt · Total dissertativas: X,00 pts · Total objetivas: 2,00 pts (8 × 0,25 pt)"`.
+- Valor por questão dissertativa: **3,00 ÷ número de dissertativas** (ex.: 1,50 pt cada para 2 questões).
+- Total dissertativas: **3,00 pts** · Total objetivas: **2,00 pts** (8 × 0,25 pt).
 
 **Para provas AF:**
 - 20 questões objetivas com pontuação distribuída igualmente.
-
-### 7.6 Espaço de Resposta Dissertativa
-
-O controle deslizante **Espaço de resposta dissertativa** define o número de linhas em branco reservadas para a resposta manuscrita do aluno nas questões dissertativas. O intervalo disponível é de **4 a 20 linhas**.
-
-### 7.7 Opção de PDF
-
-Marque a caixa **Incluir PDF no download** para que o sistema gere também versões em PDF de cada prova, além dos arquivos DOCX. A geração de PDF requer o Microsoft Word instalado na máquina.
 
 ---
 

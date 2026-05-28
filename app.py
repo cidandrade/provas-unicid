@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Gerador de Provas Unicid - Versão Web
-Versão 3.6.4
+Versão 3.7.0
 Gera provas com questões de múltipla escolha e dissertativas,
 já no formato da Unicid
 
@@ -23,6 +23,11 @@ Este programa é Software Livre licenciado sob a GPL v3+.
 Veja https://www.gnu.org/licenses/ para mais detalhes.
 
 ChangeLog
+3.7.0 maio/2026: Refatoração da UI: aba ⚙️ Configurações com persistência via
+                  localStorage (streamlit-local-storage); sub-abas "Planilha XLSX"
+                  e "Importar por IA" dentro do Gerador; imagens tornadas opt-in
+                  via checkbox; campos professor, gabarito, discursivas, linhas de
+                  resposta e PDF movidos para aba de Configurações
 3.6.4 maio/2026: Separa DALL-E em expander independente; aceita questões de XLSX
                   ou de importação via IA como fonte; chave OpenAI movida para
                   o painel de imagens; tag [img:nome] inline no enunciado do XLSX
@@ -112,6 +117,30 @@ try:
     _JSONREPAIR = True
 except ImportError:
     _JSONREPAIR = False
+
+# Persistência de configurações do professor via localStorage do navegador
+try:
+    from streamlit_local_storage import LocalStorage as _LocalStorage
+    _LS_DISPONIVEL = True
+except ImportError:
+    _LocalStorage = None
+    _LS_DISPONIVEL = False
+
+# Valores padrão e mapeamento para as chaves de localStorage
+CONFIG_DEFAULTS = {
+    "cfg_professor":        "",
+    "cfg_gabarito_tipo":    "Padrão",
+    "cfg_qt_dissertativas": 2,
+    "cfg_linhas_resposta":  8,
+    "cfg_incluir_pdf":      False,
+}
+_LS_KEYS = {
+    "cfg_professor":        "prof_nome",
+    "cfg_gabarito_tipo":    "prof_gabarito",
+    "cfg_qt_dissertativas": "prof_qt_dis",
+    "cfg_linhas_resposta":  "prof_linhas",
+    "cfg_incluir_pdf":      "prof_pdf",
+}
 
 # --- Variações de instrução para evitar respostas determinísticas da IA ---
 
@@ -1385,305 +1414,411 @@ def gera_gabarito_str(gabaritos_por_prova, tipo_avaliacao,
 
 # --- Interface Streamlit ---
 
+
+def _hidratar_config_do_local_storage(ls):
+    """
+    Carrega preferências do localStorage para session_state.
+    Executa em dois passes:
+    - Antes do JS carregar (primeiro render): usa defaults.
+    - Após JS carregar (segundo render): sobrescreve com valores do LS.
+    Depois disso, para de sobrescrever para não desfazer mudanças do usuário.
+    """
+    if st.session_state.get("_cfg_init_done"):
+        # Já carregado do LS — apenas preenche keys ausentes com defaults
+        for cfg_key, default in CONFIG_DEFAULTS.items():
+            st.session_state.setdefault(cfg_key, default)
+        return
+
+    _loaded_any = False
+    for cfg_key, default in CONFIG_DEFAULTS.items():
+        val = ls.getItem(_LS_KEYS[cfg_key]) if ls is not None else None
+        if val is not None:
+            if isinstance(default, bool):
+                val = val if isinstance(val, bool) else str(val).lower() in ("true", "1")
+            elif isinstance(default, int):
+                try:
+                    val = int(val)
+                except (ValueError, TypeError):
+                    val = default
+            st.session_state[cfg_key] = val
+            _loaded_any = True
+        else:
+            st.session_state.setdefault(cfg_key, default)
+
+    # Marca como concluído quando LS respondeu com dados, ou se LS não disponível
+    if _loaded_any or ls is None:
+        st.session_state["_cfg_init_done"] = True
+
+
+def _salvar_config_no_local_storage(ls):
+    """Persiste session_state cfg_* no localStorage do navegador."""
+    if ls is None:
+        return
+    for cfg_key, ls_key in _LS_KEYS.items():
+        val = st.session_state.get(cfg_key, CONFIG_DEFAULTS[cfg_key])
+        ls.setItem(ls_key, val)
+
+
+def _restaurar_config_padrao(ls):
+    """Restaura defaults no session_state e persiste no localStorage."""
+    for cfg_key, default in CONFIG_DEFAULTS.items():
+        st.session_state[cfg_key] = default
+    _salvar_config_no_local_storage(ls)
+    st.session_state["_cfg_init_done"] = True
+
+
+def _ui_configuracoes(ls):
+    """Aba de configurações persistidas em localStorage."""
+    st.subheader("Preferências do professor")
+    st.caption(
+        "Essas configurações ficam salvas no navegador e são restauradas automaticamente "
+        "na próxima vez que você abrir o app neste dispositivo.  \n"
+        + ("⚠️ `streamlit-local-storage` não instalado — preferências não serão persistidas entre sessões." if not _LS_DISPONIVEL else "")
+    )
+
+    st.text_input(
+        "Nome do professor",
+        placeholder="Nome completo do professor",
+        key="cfg_professor",
+    )
+    st.radio(
+        "Tipo de gabarito padrão",
+        ["Padrão", "Zipgrade"],
+        horizontal=True,
+        key="cfg_gabarito_tipo",
+    )
+    st.radio(
+        "Número de questões discursivas (Avaliação Regimental)",
+        [2, 3],
+        horizontal=True,
+        key="cfg_qt_dissertativas",
+    )
+    st.slider(
+        "Linhas de resposta por questão dissertativa",
+        min_value=4, max_value=20,
+        key="cfg_linhas_resposta",
+    )
+    st.checkbox(
+        "Incluir PDF no download",
+        key="cfg_incluir_pdf",
+        disabled=not PDF_DISPONIVEL,
+        help=(
+            "Converte cada DOCX para PDF via LibreOffice (Linux) ou Microsoft Word (Windows/Mac)."
+            if PDF_DISPONIVEL
+            else "Indisponível — LibreOffice não encontrado ou docx2pdf não instalado."
+        ),
+    )
+
+    st.divider()
+    col_salvar, col_restaurar = st.columns(2)
+    with col_salvar:
+        if st.button("💾 Salvar como padrão", type="primary", use_container_width=True, key="btn_cfg_salvar"):
+            _salvar_config_no_local_storage(ls)
+            st.success("Preferências salvas com sucesso!")
+    with col_restaurar:
+        if st.button("↺ Restaurar padrão", use_container_width=True, key="btn_cfg_restaurar"):
+            _restaurar_config_padrao(ls)
+            st.rerun()
+
+
 def _ui_importar_ia():
     """
     Expander de importação de documentos não estruturados via Claude API.
     Armazena as questões extraídas em st.session_state e limpa a chave API
     imediatamente após a chamada.
     """
-    with st.expander("Importar documento não estruturado via IA", expanded=False):
-        if not ANTHROPIC_DISPONIVEL:
-            st.warning(
-                "Pacote `anthropic` não instalado.  \n"
-                "Execute no terminal: `pip install anthropic`"
-            )
-            return
+    if not ANTHROPIC_DISPONIVEL:
+        st.warning(
+            "Pacote `anthropic` não instalado.  \n"
+            "Execute no terminal: `pip install anthropic`"
+        )
+        return
 
-        # Contador usado para trocar a key do campo de senha e limpá-lo após o uso.
-        # Streamlit não permite setar o valor de um widget pela key na mesma execução
-        # em que ele foi renderizado — mudar a key força um widget novo e vazio.
-        if "api_key_run_id" not in st.session_state:
-            st.session_state["api_key_run_id"] = 0
+    # Contador usado para trocar a key do campo de senha e limpá-lo após o uso.
+    # Streamlit não permite setar o valor de um widget pela key na mesma execução
+    # em que ele foi renderizado — mudar a key força um widget novo e vazio.
+    if "api_key_run_id" not in st.session_state:
+        st.session_state["api_key_run_id"] = 0
 
-        # Mensagem de sucesso diferida (exibida no rerun pós-processamento)
-        _msg_sucesso = st.session_state.get("ia_msg_sucesso")
-        if _msg_sucesso:
-            del st.session_state["ia_msg_sucesso"]
-            st.success(_msg_sucesso)
+    # Mensagem de sucesso diferida (exibida no rerun pós-processamento)
+    _msg_sucesso = st.session_state.get("ia_msg_sucesso")
+    if _msg_sucesso:
+        del st.session_state["ia_msg_sucesso"]
+        st.success(_msg_sucesso)
 
-        st.caption(
-            "Envie um documento com questões em qualquer formato. "
-            "A IA identifica e estrutura automaticamente as questões.  \n"
-            "Formatos aceitos: **.docx** · **.xlsx** · **.txt** · **.gs** (Apps Script) · **.json** (Google Forms API/export)."
+    st.caption(
+        "Envie um documento com questões em qualquer formato. "
+        "A IA identifica e estrutura automaticamente as questões.  \n"
+        "Formatos aceitos: **.docx** · **.xlsx** · **.txt** · **.gs** (Apps Script) · **.json** (Google Forms API/export)."
+    )
+
+    col_key, col_tipo = st.columns([2, 1])
+    with col_key:
+        api_key_input = st.text_input(
+            "Chave API Anthropic",
+            type="password",
+            placeholder="sk-ant-...",
+            key=f"api_key_widget_{st.session_state['api_key_run_id']}",
+            help="Usada somente nesta chamada. Apagada automaticamente após o processamento.",
         )
 
-        col_key, col_tipo = st.columns([2, 1])
-        with col_key:
-            api_key_input = st.text_input(
-                "Chave API Anthropic",
-                type="password",
-                placeholder="sk-ant-...",
-                key=f"api_key_widget_{st.session_state['api_key_run_id']}",
-                help="Usada somente nesta chamada. Apagada automaticamente após o processamento.",
-            )
-
-        # Persiste a chave na sessão enquanto o usuário a digitar
-        if api_key_input.strip():
-            st.session_state["anthropic_key_salva"] = api_key_input.strip()
-        with col_tipo:
-            tipo_extracao = st.selectbox(
-                "Extrair",
-                ["Ambas (objetivas + discursivas)", "Apenas objetivas", "Apenas discursivas"],
-                key="tipo_extracao_ia",
-            )
-
-        arquivo_ia = st.file_uploader(
-            "Carregar documento (.docx, .xlsx, .txt, .gs, .json)",
-            type=["docx", "xlsx", "txt", "gs", "json"],
-            key="arquivo_ia",
+    # Persiste a chave na sessão enquanto o usuário a digitar
+    if api_key_input.strip():
+        st.session_state["anthropic_key_salva"] = api_key_input.strip()
+    with col_tipo:
+        tipo_extracao = st.selectbox(
+            "Extrair",
+            ["Ambas (objetivas + discursivas)", "Apenas objetivas", "Apenas discursivas"],
+            key="tipo_extracao_ia",
         )
 
-        # Botões de ação — sempre renderizados; "Regenerar" desabilitado sem questões
-        _tem_questoes = bool(
-            st.session_state.get("ia_obj") or st.session_state.get("ia_dis")
+    arquivo_ia = st.file_uploader(
+        "Carregar documento (.docx, .xlsx, .txt, .gs, .json)",
+        type=["docx", "xlsx", "txt", "gs", "json"],
+        key="arquivo_ia",
+    )
+
+    # Botões de ação — sempre renderizados; "Regenerar" desabilitado sem questões
+    _tem_questoes = bool(
+        st.session_state.get("ia_obj") or st.session_state.get("ia_dis")
+    )
+    col_proc, col_regen = st.columns(2)
+    with col_proc:
+        processar = st.button("Processar com IA", key="btn_processar_ia")
+    with col_regen:
+        _regenerar = st.button(
+            "Regenerar nao confirmadas",
+            key="btn_regenerar_ia",
+            disabled=not _tem_questoes,
+            help="Reenvia apenas as questoes sem aprovacao para a IA gerar novas versoes.",
         )
-        col_proc, col_regen = st.columns(2)
-        with col_proc:
-            processar = st.button("Processar com IA", key="btn_processar_ia")
-        with col_regen:
-            _regenerar = st.button(
-                "Regenerar nao confirmadas",
-                key="btn_regenerar_ia",
-                disabled=not _tem_questoes,
-                help="Reenvia apenas as questoes sem aprovacao para a IA gerar novas versoes.",
-            )
 
-        # --- Processamento inicial ---
-        if processar:
-            if not api_key_input.strip():
-                st.error("Insira a chave API antes de processar.")
-            elif arquivo_ia is None:
-                st.error("Carregue um documento antes de processar.")
-            else:
-                with st.spinner("Extraindo objetivas e criando discursivas — podem ser 2 chamadas à API..."):
-                    texto, erro_texto = extrair_texto_arquivo(arquivo_ia)
-                    if erro_texto:
-                        st.error(f"Erro ao ler arquivo: {erro_texto}")
-                    else:
-                        tipo_map = {
-                            "Ambas (objetivas + discursivas)": "ambas",
-                            "Apenas objetivas": "objetivas",
-                            "Apenas discursivas": "dissertativas",
-                        }
-                        resultado, erro_api = processar_com_claude(
-                            texto, api_key_input.strip(), tipo_map[tipo_extracao],
-                        )
-                        if erro_api:
-                            st.error(f"Erro: {erro_api}")
-                        else:
-                            obj, dis, gab_dis = _converter_resultado_ia(resultado)
-                            st.session_state["ia_obj"]        = obj
-                            st.session_state["ia_dis"]        = dis
-                            st.session_state["ia_dis_gab"]    = gab_dis
-                            st.session_state["ia_obj_ok"]     = [True] * len(obj)
-                            st.session_state["ia_dis_ok"]     = [True] * len(dis)
-                            st.session_state["ia_texto_doc"]  = texto
-                            st.session_state["ia_confirmadas"] = False
-                            st.session_state["ia_msg_sucesso"] = (
-                                f"Extracao concluida: **{len(obj)}** objetiva(s) · "
-                                f"**{len(dis)}** discursiva(s).  \n"
-                                "Revise abaixo, aprove cada questao e clique em **Usar questoes aprovadas**."
-                            )
-                            st.session_state["api_key_run_id"] += 1
-                            st.rerun()
-
-        # --- Regeneração seletiva ---
-        if _regenerar:
-            obj_all  = st.session_state.get("ia_obj", [])
-            dis_all  = st.session_state.get("ia_dis", [])
-            obj_ok   = st.session_state.get("ia_obj_ok", [True] * len(obj_all))
-            dis_ok   = st.session_state.get("ia_dis_ok", [True] * len(dis_all))
-            texto_doc = st.session_state.get("ia_texto_doc", "")
-
-            obj_conf = [q for q, ok in zip(obj_all, obj_ok) if ok]
-            dis_conf = [q for q, ok in zip(dis_all, dis_ok) if ok]
-            n_obj_falt = sum(1 for ok in obj_ok if not ok)
-            n_dis_falt = sum(1 for ok in dis_ok if not ok)
-
-            if not api_key_input.strip():
-                st.error("Insira a chave API para regenerar.")
-            elif n_obj_falt == 0 and n_dis_falt == 0:
-                st.info("Todas as questoes ja estao aprovadas — nada a regenerar.")
-            elif not texto_doc:
-                st.error("Texto do documento nao disponivel. Reprocesse o arquivo.")
-            else:
-                tipo_map = {
-                    "Ambas (objetivas + discursivas)": "ambas",
-                    "Apenas objetivas": "objetivas",
-                    "Apenas discursivas": "dissertativas",
-                }
-                with st.spinner(f"Regenerando {n_obj_falt} objetiva(s) e {n_dis_falt} discursiva(s)..."):
-                    resultado, erro_api = regenerar_nao_confirmadas(
-                        texto_doc, api_key_input.strip(), tipo_map[tipo_extracao],
-                        obj_conf, dis_conf, n_obj_falt, n_dis_falt,
+    # --- Processamento inicial ---
+    if processar:
+        if not api_key_input.strip():
+            st.error("Insira a chave API antes de processar.")
+        elif arquivo_ia is None:
+            st.error("Carregue um documento antes de processar.")
+        else:
+            with st.spinner("Extraindo objetivas e criando discursivas — podem ser 2 chamadas à API..."):
+                texto, erro_texto = extrair_texto_arquivo(arquivo_ia)
+                if erro_texto:
+                    st.error(f"Erro ao ler arquivo: {erro_texto}")
+                else:
+                    tipo_map = {
+                        "Ambas (objetivas + discursivas)": "ambas",
+                        "Apenas objetivas": "objetivas",
+                        "Apenas discursivas": "dissertativas",
+                    }
+                    resultado, erro_api = processar_com_claude(
+                        texto, api_key_input.strip(), tipo_map[tipo_extracao],
                     )
                     if erro_api:
                         st.error(f"Erro: {erro_api}")
                     else:
-                        novas_obj, novas_dis, novas_gab = _converter_resultado_ia(resultado)
-                        gab_all = list(st.session_state.get("ia_dis_gab", [""] * len(dis_all)))
-
-                        # Substitui slots não aprovados pelas novas questões
-                        obj_final, ok_final = list(obj_all), list(obj_ok)
-                        slot_obj = 0
-                        for i in range(len(obj_final)):
-                            if not ok_final[i] and slot_obj < len(novas_obj):
-                                obj_final[i] = novas_obj[slot_obj]
-                                ok_final[i]  = False
-                                slot_obj += 1
-
-                        dis_final, dok_final, gab_final = list(dis_all), list(dis_ok), gab_all
-                        slot_dis = 0
-                        for i in range(len(dis_final)):
-                            if not dok_final[i] and slot_dis < len(novas_dis):
-                                dis_final[i] = novas_dis[slot_dis]
-                                gab_final[i] = novas_gab[slot_dis] if slot_dis < len(novas_gab) else ""
-                                dok_final[i] = False
-                                slot_dis += 1
-
-                        st.session_state["ia_obj"]     = obj_final
-                        st.session_state["ia_dis"]     = dis_final
-                        st.session_state["ia_dis_gab"] = gab_final
-                        st.session_state["ia_obj_ok"]  = ok_final
-                        st.session_state["ia_dis_ok"]  = dok_final
-                        st.session_state["api_key_run_id"] += 1
+                        obj, dis, gab_dis = _converter_resultado_ia(resultado)
+                        st.session_state["ia_obj"]        = obj
+                        st.session_state["ia_dis"]        = dis
+                        st.session_state["ia_dis_gab"]    = gab_dis
+                        st.session_state["ia_obj_ok"]     = [True] * len(obj)
+                        st.session_state["ia_dis_ok"]     = [True] * len(dis)
+                        st.session_state["ia_texto_doc"]  = texto
+                        st.session_state["ia_confirmadas"] = False
                         st.session_state["ia_msg_sucesso"] = (
-                            f"Regeneracao concluida: {slot_obj} objetiva(s) e "
-                            f"{slot_dis} discursiva(s) substituidas. Revise abaixo."
+                            f"Extracao concluida: **{len(obj)}** objetiva(s) · "
+                            f"**{len(dis)}** discursiva(s).  \n"
+                            "Revise abaixo, aprove cada questao e clique em **Usar questoes aprovadas**."
                         )
+                        st.session_state["api_key_run_id"] += 1
                         st.rerun()
 
-        # --- Painel de revisao por questão ---
-        obj_prev = st.session_state.get("ia_obj", [])
-        dis_prev = st.session_state.get("ia_dis", [])
+    # --- Regeneração seletiva ---
+    if _regenerar:
+        obj_all  = st.session_state.get("ia_obj", [])
+        dis_all  = st.session_state.get("ia_dis", [])
+        obj_ok   = st.session_state.get("ia_obj_ok", [True] * len(obj_all))
+        dis_ok   = st.session_state.get("ia_dis_ok", [True] * len(dis_all))
+        texto_doc = st.session_state.get("ia_texto_doc", "")
 
-        if obj_prev or dis_prev:
-            # Garante que os status existem e têm o tamanho correto
-            if "ia_obj_ok" not in st.session_state or len(st.session_state["ia_obj_ok"]) != len(obj_prev):
-                st.session_state["ia_obj_ok"] = [True] * len(obj_prev)
-            if "ia_dis_ok" not in st.session_state or len(st.session_state["ia_dis_ok"]) != len(dis_prev):
-                st.session_state["ia_dis_ok"] = [True] * len(dis_prev)
+        obj_conf = [q for q, ok in zip(obj_all, obj_ok) if ok]
+        dis_conf = [q for q, ok in zip(dis_all, dis_ok) if ok]
+        n_obj_falt = sum(1 for ok in obj_ok if not ok)
+        n_dis_falt = sum(1 for ok in dis_ok if not ok)
 
-            obj_ok = st.session_state["ia_obj_ok"]
-            dis_ok = st.session_state["ia_dis_ok"]
+        if not api_key_input.strip():
+            st.error("Insira a chave API para regenerar.")
+        elif n_obj_falt == 0 and n_dis_falt == 0:
+            st.info("Todas as questoes ja estao aprovadas — nada a regenerar.")
+        elif not texto_doc:
+            st.error("Texto do documento nao disponivel. Reprocesse o arquivo.")
+        else:
+            tipo_map = {
+                "Ambas (objetivas + discursivas)": "ambas",
+                "Apenas objetivas": "objetivas",
+                "Apenas discursivas": "dissertativas",
+            }
+            with st.spinner(f"Regenerando {n_obj_falt} objetiva(s) e {n_dis_falt} discursiva(s)..."):
+                resultado, erro_api = regenerar_nao_confirmadas(
+                    texto_doc, api_key_input.strip(), tipo_map[tipo_extracao],
+                    obj_conf, dis_conf, n_obj_falt, n_dis_falt,
+                )
+                if erro_api:
+                    st.error(f"Erro: {erro_api}")
+                else:
+                    novas_obj, novas_dis, novas_gab = _converter_resultado_ia(resultado)
+                    gab_all = list(st.session_state.get("ia_dis_gab", [""] * len(dis_all)))
 
-            n_ok = sum(obj_ok) + sum(dis_ok)
-            n_total = len(obj_prev) + len(dis_prev)
-            st.markdown(f"**Revisao das questoes extraidas** — {n_ok}/{n_total} aprovadas")
+                    # Substitui slots não aprovados pelas novas questões
+                    obj_final, ok_final = list(obj_all), list(obj_ok)
+                    slot_obj = 0
+                    for i in range(len(obj_final)):
+                        if not ok_final[i] and slot_obj < len(novas_obj):
+                            obj_final[i] = novas_obj[slot_obj]
+                            ok_final[i]  = False
+                            slot_obj += 1
 
-            # Objetivas
-            if obj_prev:
-                st.markdown("**Questoes Objetivas**")
-                for i, q in enumerate(obj_prev):
-                    icone = "OK" if obj_ok[i] else "X"
-                    cor   = "green" if obj_ok[i] else "red"
-                    with st.container(border=True):
-                        c_icon, c_texto, c_btn = st.columns([0.08, 0.80, 0.12])
-                        with c_icon:
-                            st.markdown(
-                                f"<span style='font-size:1.4rem;color:{cor}'>"
-                                f"{'✅' if obj_ok[i] else '❌'}</span>",
-                                unsafe_allow_html=True,
-                            )
-                        with c_texto:
-                            st.markdown(f"**Q{i+1}.** {q[0]}")
-                            st.caption(
-                                f"**Correta:** {q[1]}  \n"
-                                f"**Distratores:** {' / '.join(q[3:7])}"
-                            )
-                        with c_btn:
-                            label = "Reprovar" if obj_ok[i] else "Aprovar"
-                            if st.button(label, key=f"tog_obj_{i}"):
-                                st.session_state["ia_obj_ok"][i] = not obj_ok[i]
-                                st.rerun()
+                    dis_final, dok_final, gab_final = list(dis_all), list(dis_ok), gab_all
+                    slot_dis = 0
+                    for i in range(len(dis_final)):
+                        if not dok_final[i] and slot_dis < len(novas_dis):
+                            dis_final[i] = novas_dis[slot_dis]
+                            gab_final[i] = novas_gab[slot_dis] if slot_dis < len(novas_gab) else ""
+                            dok_final[i] = False
+                            slot_dis += 1
 
-            # Dissertativas
-            if dis_prev:
-                gab_prev = st.session_state.get("ia_dis_gab", [""] * len(dis_prev))
-                if len(gab_prev) != len(dis_prev):
-                    gab_prev = [""] * len(dis_prev)
-
-                st.markdown("**Questoes Discursivas**")
-                for i, q in enumerate(dis_prev):
-                    with st.container(border=True):
-                        c_icon, c_texto, c_btn = st.columns([0.08, 0.80, 0.12])
-                        with c_icon:
-                            st.markdown(
-                                f"<span style='font-size:1.4rem;color:{'green' if dis_ok[i] else 'red'}'>"
-                                f"{'✅' if dis_ok[i] else '❌'}</span>",
-                                unsafe_allow_html=True,
-                            )
-                        with c_texto:
-                            st.markdown(f"**D{i+1}.** {q}")
-                            if gab_prev[i]:
-                                st.caption(f"**Resposta esperada:** {gab_prev[i]}")
-                        with c_btn:
-                            label = "Reprovar" if dis_ok[i] else "Aprovar"
-                            if st.button(label, key=f"tog_dis_{i}"):
-                                st.session_state["ia_dis_ok"][i] = not dis_ok[i]
-                                st.rerun()
-
-
-            st.divider()
-            col_usar, col_limpar = st.columns(2)
-            with col_usar:
-                n_obj_aprov = sum(obj_ok)
-                n_dis_aprov = sum(dis_ok)
-                if st.button(
-                    f"Usar questoes aprovadas ({n_obj_aprov} obj · {n_dis_aprov} dis)",
-                    type="primary", key="btn_usar_ia"
-                ):
-                    gab_all = st.session_state.get("ia_dis_gab", [""] * len(dis_prev))
-                    # Filtra apenas as aprovadas (questões e gabaritos alinhados)
-                    st.session_state["ia_obj"]     = [q for q, ok in zip(obj_prev, obj_ok) if ok]
-                    st.session_state["ia_dis"]     = [q for q, ok in zip(dis_prev, dis_ok) if ok]
-                    st.session_state["ia_dis_gab"] = [g for g, ok in zip(gab_all, dis_ok) if ok]
-                    st.session_state["ia_obj_ok"]  = [True] * len(st.session_state["ia_obj"])
-                    st.session_state["ia_dis_ok"]  = [True] * len(st.session_state["ia_dis"])
-                    st.session_state["ia_confirmadas"] = True
-                    st.rerun()
-            with col_limpar:
-                if st.button("Descartar tudo", key="btn_limpar_ia"):
-                    for k in ("ia_obj", "ia_dis", "ia_dis_gab", "ia_obj_ok",
-                              "ia_dis_ok", "ia_confirmadas", "ia_texto_doc",
-                              "anthropic_key_salva"):
-                        if k in st.session_state:
-                            del st.session_state[k]
+                    st.session_state["ia_obj"]     = obj_final
+                    st.session_state["ia_dis"]     = dis_final
+                    st.session_state["ia_dis_gab"] = gab_final
+                    st.session_state["ia_obj_ok"]  = ok_final
+                    st.session_state["ia_dis_ok"]  = dok_final
+                    st.session_state["api_key_run_id"] += 1
+                    st.session_state["ia_msg_sucesso"] = (
+                        f"Regeneracao concluida: {slot_obj} objetiva(s) e "
+                        f"{slot_dis} discursiva(s) substituidas. Revise abaixo."
+                    )
                     st.rerun()
 
-        if st.session_state.get("ia_confirmadas"):
-            n_obj = len(st.session_state.get("ia_obj", []))
-            n_dis = len(st.session_state.get("ia_dis", []))
-            st.success(
-                f"Questoes ativas via IA: **{n_obj}** objetiva(s) · **{n_dis}** discursiva(s). "
-                "Pronto para gerar a prova."
+    # --- Painel de revisao por questão ---
+    obj_prev = st.session_state.get("ia_obj", [])
+    dis_prev = st.session_state.get("ia_dis", [])
+
+    if obj_prev or dis_prev:
+        # Garante que os status existem e têm o tamanho correto
+        if "ia_obj_ok" not in st.session_state or len(st.session_state["ia_obj_ok"]) != len(obj_prev):
+            st.session_state["ia_obj_ok"] = [True] * len(obj_prev)
+        if "ia_dis_ok" not in st.session_state or len(st.session_state["ia_dis_ok"]) != len(dis_prev):
+            st.session_state["ia_dis_ok"] = [True] * len(dis_prev)
+
+        obj_ok = st.session_state["ia_obj_ok"]
+        dis_ok = st.session_state["ia_dis_ok"]
+
+        n_ok = sum(obj_ok) + sum(dis_ok)
+        n_total = len(obj_prev) + len(dis_prev)
+        st.markdown(f"**Revisao das questoes extraidas** — {n_ok}/{n_total} aprovadas")
+
+        # Objetivas
+        if obj_prev:
+            st.markdown("**Questoes Objetivas**")
+            for i, q in enumerate(obj_prev):
+                icone = "OK" if obj_ok[i] else "X"
+                cor   = "green" if obj_ok[i] else "red"
+                with st.container(border=True):
+                    c_icon, c_texto, c_btn = st.columns([0.08, 0.80, 0.12])
+                    with c_icon:
+                        st.markdown(
+                            f"<span style='font-size:1.4rem;color:{cor}'>"
+                            f"{'✅' if obj_ok[i] else '❌'}</span>",
+                            unsafe_allow_html=True,
+                        )
+                    with c_texto:
+                        st.markdown(f"**Q{i+1}.** {q[0]}")
+                        st.caption(
+                            f"**Correta:** {q[1]}  \n"
+                            f"**Distratores:** {' / '.join(q[3:7])}"
+                        )
+                    with c_btn:
+                        label = "Reprovar" if obj_ok[i] else "Aprovar"
+                        if st.button(label, key=f"tog_obj_{i}"):
+                            st.session_state["ia_obj_ok"][i] = not obj_ok[i]
+                            st.rerun()
+
+        # Dissertativas
+        if dis_prev:
+            gab_prev = st.session_state.get("ia_dis_gab", [""] * len(dis_prev))
+            if len(gab_prev) != len(dis_prev):
+                gab_prev = [""] * len(dis_prev)
+
+            st.markdown("**Questoes Discursivas**")
+            for i, q in enumerate(dis_prev):
+                with st.container(border=True):
+                    c_icon, c_texto, c_btn = st.columns([0.08, 0.80, 0.12])
+                    with c_icon:
+                        st.markdown(
+                            f"<span style='font-size:1.4rem;color:{'green' if dis_ok[i] else 'red'}'>"
+                            f"{'✅' if dis_ok[i] else '❌'}</span>",
+                            unsafe_allow_html=True,
+                        )
+                    with c_texto:
+                        st.markdown(f"**D{i+1}.** {q}")
+                        if gab_prev[i]:
+                            st.caption(f"**Resposta esperada:** {gab_prev[i]}")
+                    with c_btn:
+                        label = "Reprovar" if dis_ok[i] else "Aprovar"
+                        if st.button(label, key=f"tog_dis_{i}"):
+                            st.session_state["ia_dis_ok"][i] = not dis_ok[i]
+                            st.rerun()
+
+
+        st.divider()
+        col_usar, col_limpar = st.columns(2)
+        with col_usar:
+            n_obj_aprov = sum(obj_ok)
+            n_dis_aprov = sum(dis_ok)
+            if st.button(
+                f"Usar questoes aprovadas ({n_obj_aprov} obj · {n_dis_aprov} dis)",
+                type="primary", key="btn_usar_ia"
+            ):
+                gab_all = st.session_state.get("ia_dis_gab", [""] * len(dis_prev))
+                # Filtra apenas as aprovadas (questões e gabaritos alinhados)
+                st.session_state["ia_obj"]     = [q for q, ok in zip(obj_prev, obj_ok) if ok]
+                st.session_state["ia_dis"]     = [q for q, ok in zip(dis_prev, dis_ok) if ok]
+                st.session_state["ia_dis_gab"] = [g for g, ok in zip(gab_all, dis_ok) if ok]
+                st.session_state["ia_obj_ok"]  = [True] * len(st.session_state["ia_obj"])
+                st.session_state["ia_dis_ok"]  = [True] * len(st.session_state["ia_dis"])
+                st.session_state["ia_confirmadas"] = True
+                st.rerun()
+        with col_limpar:
+            if st.button("Descartar tudo", key="btn_limpar_ia"):
+                for k in ("ia_obj", "ia_dis", "ia_dis_gab", "ia_obj_ok",
+                          "ia_dis_ok", "ia_confirmadas", "ia_texto_doc",
+                          "anthropic_key_salva"):
+                    if k in st.session_state:
+                        del st.session_state[k]
+                st.rerun()
+
+    if st.session_state.get("ia_confirmadas"):
+        n_obj = len(st.session_state.get("ia_obj", []))
+        n_dis = len(st.session_state.get("ia_dis", []))
+        st.success(
+            f"Questoes ativas via IA: **{n_obj}** objetiva(s) · **{n_dis}** discursiva(s). "
+            "Pronto para gerar a prova."
+        )
+        # Dica de variedade: pool pequeno = mesmas questões em todas as versões
+        avisos = []
+        if n_obj <= 8:
+            avisos.append(
+                f"Objetivas: pool de {n_obj} questão(ões) — todas as versões usarão as mesmas."
+                " Processe novamente para obter questões diferentes."
             )
-            # Dica de variedade: pool pequeno = mesmas questões em todas as versões
-            avisos = []
-            if n_obj <= 8:
-                avisos.append(
-                    f"Objetivas: pool de {n_obj} questão(ões) — todas as versões usarão as mesmas."
-                    " Processe novamente para obter questões diferentes."
-                )
-            if n_dis <= 2:
-                avisos.append(
-                    f"Discursivas: pool de {n_dis} questão(ões) — sem variedade entre versões."
-                    " Processe novamente para ampliar o pool."
-                )
-            if avisos:
-                st.info(
-                    "**Dica de variedade entre versões:** " + " | ".join(avisos)
-                )
+        if n_dis <= 2:
+            avisos.append(
+                f"Discursivas: pool de {n_dis} questão(ões) — sem variedade entre versões."
+                " Processe novamente para ampliar o pool."
+            )
+        if avisos:
+            st.info(
+                "**Dica de variedade entre versões:** " + " | ".join(avisos)
+            )
 
 
 def _ler_enunciados_xlsx_obj(arquivo):
@@ -1960,7 +2095,7 @@ def _img(nome):
 
 def _ui_manual():
     st.header("Manual do Usuário")
-    st.caption("Versão 3.6.4 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
+    st.caption("Versão 3.7.0 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
     st.divider()
 
     # 1. Introdução
@@ -2395,381 +2530,342 @@ def main():
     )
 
     st.title("Gerador de Provas Unicid")
-    st.caption("Versão 3.6.4 · Prof.Me. Cid R. Andrade · profandrade@gmail.com · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
+    st.caption("Versão 3.7.0 · Prof.Me. Cid R. Andrade · profandrade@gmail.com · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
 
-    tab_ger, tab_man, tab_faq = st.tabs(["🏠 Gerador de Provas", "📖 Manual", "❓ FAQ"])
+    # Carrega (ou inicializa) configurações persistidas
+    ls = _LocalStorage() if _LS_DISPONIVEL else None
+    _hidratar_config_do_local_storage(ls)
+
+    tab_ger, tab_man, tab_faq, tab_cfg = st.tabs([
+        "🏠 Gerador de Provas", "📖 Manual", "❓ FAQ", "⚙️ Configurações"
+    ])
 
     with tab_ger:
-        st.divider()
-
-        # Seção de importação via IA (opcional, independente do fluxo principal)
-        _ui_importar_ia()
-
-        st.divider()
-
-    col_esq, col_dir = st.columns([1, 1], gap="large")
-
-    with col_esq:
-        # 1. Tipo de avaliação
-        tipo_label = st.radio(
-            "Tipo de avaliação",
-            ["Regimental — AR", "Final — AF  (20 objetivas)"],
-            horizontal=True
-        )
+        # --- Campos por prova ---
+        col_tipo, col_versoes = st.columns([2, 1], gap="large")
+        with col_tipo:
+            tipo_label = st.radio(
+                "Tipo de avaliação",
+                ["Regimental — AR", "Final — AF  (20 objetivas)"],
+                horizontal=True
+            )
         tipo_codigo           = "R" if "Regimental" in tipo_label else "F"
         qt_questoes_objetivas = 8 if tipo_codigo == "R" else 20
 
-        # 2. Tipo de gabarito
-        gabarito_tipo = st.radio(
-            "Tipo de gabarito",
-            ["Padrão", "Zipgrade"],
-            horizontal=True
-        )
-        modelo_caminho = os.path.join(BASE_DIR, MODELOS[(tipo_codigo, gabarito_tipo)])
+        with col_versoes:
+            qt_versoes = st.slider("Número de versões da prova", min_value=1, max_value=8, value=4)
+            st.caption(f"Versões: {', '.join(LETRAS_PROVA[:qt_versoes])}")
 
-        st.divider()
-
-        # 3. Número de versões
-        qt_versoes = st.slider("Número de versões da prova", min_value=1, max_value=8, value=4)
-        st.caption(f"Versões: {', '.join(LETRAS_PROVA[:qt_versoes])}")
-
-        st.divider()
-
-        # 4. Dados do professor e disciplina
-        nome_professor  = st.text_input("Professor",  placeholder="Nome completo do professor")
         nome_disciplina = st.text_input("Disciplina", placeholder="Nome da disciplina")
 
-        st.divider()
-
-        # 5. Pontuação por seção (opcional — aparece no cabeçalho da prova)
-        st.subheader("Pontuação")
-        st.caption("Aparece no cabeçalho de cada seção da prova. Deixe em branco para omitir.")
+        # Resumo das configurações ativas (vindas da aba ⚙️)
         if tipo_codigo == "R":
-            qt_dissertativas = st.radio(
-                "Questões discursivas",
-                [2, 3],
-                horizontal=True,
-                key="qt_dis_radio",
-            )
-            _val_dis = 3.0 / qt_dissertativas
+            _cfg_qt_dis = st.session_state.get("cfg_qt_dissertativas", 2)
+            _val_dis = 3.0 / _cfg_qt_dis
             _por_questao_fmt = f"{_val_dis:.2f}".replace(".", ",") + " pt"
-            pontos_dis = "3,00 pts"   # total da seção — vai para o cabeçalho do DOCX
-            st.caption(
-                f"Valor por questão discursiva: **{_por_questao_fmt}** · "
-                f"Total discursivas: **3,00 pts** · "
-                f"Total objetivas: **2,00 pts** (8 × 0,25 pt)"
+            _cfg_resumo = (
+                f"Configurações ativas: professor **{st.session_state.get('cfg_professor', '') or '—'}** · "
+                f"gabarito **{st.session_state.get('cfg_gabarito_tipo', 'Padrão')}** · "
+                f"**{_cfg_qt_dis}** discursivas ({_por_questao_fmt} cada) · "
+                f"**{st.session_state.get('cfg_linhas_resposta', 8)}** linhas de resposta  \n"
+                "_Configure na aba ⚙️ Configurações._"
             )
-        else:
-            qt_dissertativas = 0
-            pontos_dis = ""
-        pontos_obj = "2,00 pts" if tipo_codigo == "R" else ""
+            st.caption(_cfg_resumo)
 
         st.divider()
 
-        # 6. Espaço dissertativo (somente AR)
-        linhas_por_questao = 8
-        if tipo_codigo == "R":
-            st.subheader("Espaço de resposta discursiva")
-            st.caption(
-                "As discursivas ocupam página inteira (1 coluna), iniciando sempre em "
-                "página nova. As linhas abaixo são inseridas diretamente no DOCX."
-            )
-            linhas_por_questao = st.slider(
-                "Linhas de resposta por questão",
-                min_value=4, max_value=20, value=8
-            )
-
-        st.divider()
-
-        # 6. Opção de PDF
-        gerar_pdf = st.checkbox(
-            "Incluir PDF no download",
-            value=False,
-            help=(
-                "Converte cada DOCX para PDF via Microsoft Word. "
-                "Feche o Word antes de gerar."
-                if PDF_DISPONIVEL
-                else "Indisponível — instale: pip install docx2pdf (requer Microsoft Word)"
-            ),
-            disabled=not PDF_DISPONIVEL
-        )
-        if not PDF_DISPONIVEL:
-            st.caption("Para habilitar PDF: `pip install docx2pdf` (requer Microsoft Word)")
-
-    with col_dir:
+        # --- Sub-abas: XLSX (padrão) vs Importação por IA ---
         _usando_ia = st.session_state.get("ia_confirmadas", False)
         _ia_obj    = st.session_state.get("ia_obj", [])
         _ia_dis    = st.session_state.get("ia_dis", [])
 
-        # 7. Upload de questões objetivas
-        st.subheader("Questões objetivas")
-        if _usando_ia and _ia_obj:
-            st.info(f"{len(_ia_obj)} questão(ões) objetiva(s) carregada(s) via IA.")
-        st.caption(
-            "Planilha XLSX: **coluna A** = enunciado · **coluna B** = resposta correta "
-            "· **colunas C–F** = distratores.  \nPrimeira linha = primeira questão (sem cabeçalho).  \n"
-            "Formatação: `*itálico*` · `**negrito**` · `***negrito e itálico***`"
-            + ("  \n_Upload opcional — questões da IA estão ativas._" if (_usando_ia and _ia_obj) else "")
-        )
-        arquivo_objetivas = st.file_uploader(
-            "Carregar questões objetivas (.xlsx)",
-            type=["xlsx"],
-            key="objetivas"
-        )
-
-        # 8. Upload de questões dissertativas (somente AR)
+        arquivo_objetivas    = None
         arquivo_dissertativas = None
-        if tipo_codigo == "R":
-            st.subheader("Questões discursivas")
-            if _usando_ia and _ia_dis:
-                st.info(f"{len(_ia_dis)} questão(ões) discursiva(s) carregada(s) via IA.")
+
+        sub_xlsx, sub_ia = st.tabs(["📊 Planilha XLSX", "🤖 Importar por IA"])
+
+        with sub_xlsx:
+            if _usando_ia and _ia_obj:
+                st.info(f"{len(_ia_obj)} questão(ões) objetiva(s) carregada(s) via IA.")
             st.caption(
-                "Planilha XLSX: **coluna A** = enunciado.  \n"
-                "Primeira linha = primeira questão (sem cabeçalho).  \n"
+                "Planilha XLSX: **coluna A** = enunciado · **coluna B** = resposta correta "
+                "· **colunas C–F** = distratores.  \nPrimeira linha = primeira questão (sem cabeçalho).  \n"
                 "Formatação: `*itálico*` · `**negrito**` · `***negrito e itálico***`"
-                + ("  \n_Upload opcional — questões da IA estão ativas._" if (_usando_ia and _ia_dis) else "")
+                + ("  \n_Upload opcional — questões da IA estão ativas._" if (_usando_ia and _ia_obj) else "")
             )
-            arquivo_dissertativas = st.file_uploader(
-                "Carregar questões discursivas (.xlsx)",
+            arquivo_objetivas = st.file_uploader(
+                "Carregar questões objetivas (.xlsx)",
                 type=["xlsx"],
-                key="dissertativas"
+                key="objetivas"
             )
 
-    st.divider()
-
-    # 9. Imagens das questões (opcional)
-    arquivos_imagens = st.file_uploader(
-        "Imagens das questões (opcional)",
-        type=["png", "jpg", "jpeg", "gif", "bmp"],
-        accept_multiple_files=True,
-        key="imagens_questoes",
-        help=(
-            "Para incluir uma imagem em uma questão, você tem duas opções:  \n\n"
-            "**1. Tag inline no XLSX (mais simples):** escreva `[img:nome.png]` "
-            "em qualquer ponto do enunciado na coluna A. "
-            "A tag é removida do texto da prova e a imagem aparece logo abaixo da questão.  \n\n"
-            "**2. Coluna dedicada no XLSX:** informe só o nome do arquivo — "
-            "coluna G para objetivas, coluna B para discursivas.  \n\n"
-            "Para gerar imagens automaticamente via DALL-E 3, use o painel "
-            "\"Imagens ilustrativas com DALL-E 3\" logo abaixo."
-        ),
-    )
-
-    st.divider()
-
-    # 10. Imagens com DALL-E 3 (opcional, independente da importação de documentos)
-    _ui_dalle_imagens(arquivo_objetivas, arquivo_dissertativas)
-
-    st.divider()
-
-    # 11. Botão de geração
-    gerar = st.button("Gerar Provas", type="primary", use_container_width=True)
-
-    if gerar:
-        _usando_ia = st.session_state.get("ia_confirmadas", False)
-        _ia_obj    = st.session_state.get("ia_obj", [])
-        _ia_dis    = st.session_state.get("ia_dis", [])
-
-        # --- Validações ---
-        if not nome_professor.strip():
-            st.error("Preencha o nome do professor antes de continuar.")
-            return
-        if not nome_disciplina.strip():
-            st.error("Preencha o nome da disciplina antes de continuar.")
-            return
-
-        tem_obj = arquivo_objetivas is not None or (_usando_ia and _ia_obj)
-        if not tem_obj:
-            st.error(
-                "Carregue o arquivo de questões objetivas ou importe via IA antes de continuar."
-            )
-            return
-
-        tem_dis = (
-            arquivo_dissertativas is not None
-            or (_usando_ia and _ia_dis)
-        )
-        if tipo_codigo == "R" and not tem_dis:
-            st.error(
-                "Carregue o arquivo de questões discursivas ou importe via IA antes de continuar."
-            )
-            return
-
-        if not os.path.exists(modelo_caminho):
-            st.error(
-                f"Arquivo de modelo '{os.path.basename(modelo_caminho)}' não encontrado. "
-                "Contate o administrador do sistema."
-            )
-            return
-
-        # --- Geração ---
-        with st.spinner("Lendo questões e gerando provas..."):
-
-            # Monta dict de imagens carregadas: {filename: bytes}
-            uploaded_images = {}
-            if arquivos_imagens:
-                for f_img in arquivos_imagens:
-                    uploaded_images[f_img.name] = f_img.getvalue()
-
-            # Fonte das objetivas: XLSX tem prioridade; IA como fallback
-            imagens_obj = {}
-            if arquivo_objetivas is not None:
-                questoes_objetivas, imagens_obj = get_questoes_xlsx(arquivo_objetivas)
-                if not questoes_objetivas:
-                    st.error("Nenhuma questão objetiva válida encontrada. Verifique o arquivo XLSX.")
-                    return
-            else:
-                questoes_objetivas = _ia_obj
-
-            if len(questoes_objetivas) < qt_questoes_objetivas:
-                st.error(
-                    f"São necessárias **{qt_questoes_objetivas}** questões objetivas, "
-                    f"mas foram encontradas apenas **{len(questoes_objetivas)}**."
-                )
-                return
-
-            questoes_dissertativas   = None
-            gabaritos_dissertativas  = None   # dict enunciado→resposta (só via IA)
-            imagens_dis = {}
-            # qt_dissertativas vem da UI (radio 2 ou 3), já definido acima
             if tipo_codigo == "R":
-                if arquivo_dissertativas is not None:
-                    questoes_dissertativas, imagens_dis = get_questoes_dissertativas_xlsx(arquivo_dissertativas)
-                    if not questoes_dissertativas:
-                        st.error("Nenhuma questão discursiva válida. Verifique o arquivo XLSX.")
-                        return
-                else:
-                    questoes_dissertativas  = _ia_dis
-                    _ia_dis_gab = st.session_state.get("ia_dis_gab", [])
-                    # Monta mapeamento enunciado → resposta esperada
-                    gabaritos_dissertativas = {
-                        enunc: resp
-                        for enunc, resp in zip(questoes_dissertativas, _ia_dis_gab)
-                        if resp
-                    }
-
-                if len(questoes_dissertativas) < qt_dissertativas:
-                    st.error(
-                        f"São necessárias ao menos **{qt_dissertativas}** questões discursivas, "
-                        f"mas foram encontradas apenas **{len(questoes_dissertativas)}**."
-                    )
-                    return
-
-            gabaritos                     = {}
-            gabaritos_dis_por_prova       = {}   # {nome_prova: [(enunciado, resposta)]}
-            zip_buffer = BytesIO()
-            erros      = []
-            erros_pdf  = []
-
-            # Monta dict {enunciado: bytes} — combina XLSX + IA (XLSX tem prioridade)
-            imagens_mapa = {**imagens_obj, **imagens_dis}
-            if imagens_mapa and uploaded_images is not None:
-                faltando = [fname for fname in imagens_mapa.values() if fname not in uploaded_images]
-                if faltando:
-                    st.warning(
-                        f"Imagem(ns) referenciada(s) mas não encontrada(s): "
-                        f"**{', '.join(faltando)}**. "
-                        "Faça o upload ou remova a tag `[img:]` da questão. "
-                        "A prova será gerada sem essas imagens."
-                    )
-            imagens_xlsx = {
-                enunc: uploaded_images[fname]
-                for enunc, fname in imagens_mapa.items()
-                if fname in uploaded_images
-            } if uploaded_images else {}
-            imagens_ia = st.session_state.get("ia_imgs", {})
-            imagens_bytes = {**imagens_ia, **imagens_xlsx}  # XLSX sobrescreve IA
-
-            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-                for i in range(qt_versoes):
-                    nome_prova = LETRAS_PROVA[i]
-                    simbolo    = SIMBOLOS_PROVA[nome_prova]
-
-                    questoes_selecionadas = random.sample(questoes_objetivas, qt_questoes_objetivas)
-                    questoes_formatadas, gabarito_da_prova, enunciados_obj = criar_prova(
-                        nome_prova, simbolo, qt_questoes_objetivas, questoes_selecionadas
-                    )
-
-                    dissertativas_selecionadas = None
-                    if tipo_codigo == "R" and questoes_dissertativas:
-                        dissertativas_selecionadas = random.sample(questoes_dissertativas, qt_dissertativas)
-                        # Registra gabarito das dissertativas desta versão
-                        if gabaritos_dissertativas:
-                            gabaritos_dis_por_prova[nome_prova] = [
-                                (enunc, gabaritos_dissertativas.get(enunc, ""))
-                                for enunc in dissertativas_selecionadas
-                            ]
-
-                    gabaritos[nome_prova] = gabarito_da_prova
-
-                    prova_bytes = gera_prova_bytes(
-                        modelo_caminho, nome_prova, questoes_formatadas,
-                        simbolo, tipo_codigo, dissertativas_selecionadas,
-                        professor=nome_professor.strip(),
-                        disciplina=nome_disciplina.strip(),
-                        linhas_por_questao=linhas_por_questao,
-                        pontos_obj=pontos_obj.strip(),
-                        pontos_dis=pontos_dis,
-                        imagens_questoes=imagens_bytes or None,
-                        enunciados_obj=enunciados_obj,
-                    )
-
-                    if prova_bytes:
-                        zf.writestr(f"prova_{nome_prova}.docx", prova_bytes)
-                        if gerar_pdf:
-                            pdf_bytes, pdf_erro = docx_bytes_to_pdf_bytes(prova_bytes)
-                            if pdf_bytes:
-                                zf.writestr(f"prova_{nome_prova}.pdf", pdf_bytes)
-                            else:
-                                erros_pdf.append((nome_prova, pdf_erro))
-                    else:
-                        erros.append(nome_prova)
-
-                # Gabarito geral (com respostas dissertativas quando disponíveis)
-                gabarito_str = gera_gabarito_str(
-                    gabaritos, tipo_codigo,
-                    gabaritos_dissertativas_por_prova=gabaritos_dis_por_prova or None,
+                st.divider()
+                if _usando_ia and _ia_dis:
+                    st.info(f"{len(_ia_dis)} questão(ões) discursiva(s) carregada(s) via IA.")
+                st.caption(
+                    "Planilha XLSX: **coluna A** = enunciado.  \n"
+                    "Primeira linha = primeira questão (sem cabeçalho).  \n"
+                    "Formatação: `*itálico*` · `**negrito**` · `***negrito e itálico***`"
+                    + ("  \n_Upload opcional — questões da IA estão ativas._" if (_usando_ia and _ia_dis) else "")
                 )
-                data_hora        = datetime.now().strftime("%Y%m%d_%H%M%S")
-                nome_completo_av = "Regimental" if tipo_codigo == "R" else "Final"
-                nome_gabarito    = f"Gabarito_Geral_{nome_completo_av}_{data_hora}.txt"
-                zf.writestr(nome_gabarito, gabarito_str.encode("utf-8"))
+                arquivo_dissertativas = st.file_uploader(
+                    "Carregar questões discursivas (.xlsx)",
+                    type=["xlsx"],
+                    key="dissertativas"
+                )
 
-        if erros:
-            st.warning(f"Erro ao gerar versões: {', '.join(erros)}. As demais foram incluídas no ZIP.")
+        with sub_ia:
+            _ui_importar_ia()
 
-        if erros_pdf:
-            versoes_com_erro = ", ".join(v for v, _ in erros_pdf)
-            # Mostra o motivo real do primeiro erro (geralmente o mesmo para todos)
-            msg_erro = erros_pdf[0][1] or "erro desconhecido"
-            st.warning(
-                f"Conversão para PDF falhou nas versões: {versoes_com_erro}.  \n"
-                f"**Motivo:** {msg_erro}  \n"
-                "Dica: feche o Microsoft Word completamente antes de gerar."
+        st.divider()
+
+        # --- Imagens — opt-in via checkbox ---
+        incluir_imagens = st.checkbox("Incluir imagens nas provas", value=False, key="incluir_imagens")
+        arquivos_imagens = None
+        if incluir_imagens:
+            arquivos_imagens = st.file_uploader(
+                "Imagens das questões (opcional)",
+                type=["png", "jpg", "jpeg", "gif", "bmp"],
+                accept_multiple_files=True,
+                key="imagens_questoes",
+                help=(
+                    "Para incluir uma imagem em uma questão, você tem duas opções:  \n\n"
+                    "**1. Tag inline no XLSX (mais simples):** escreva `[img:nome.png]` "
+                    "em qualquer ponto do enunciado na coluna A. "
+                    "A tag é removida do texto da prova e a imagem aparece logo abaixo da questão.  \n\n"
+                    "**2. Coluna dedicada no XLSX:** informe só o nome do arquivo — "
+                    "coluna G para objetivas, coluna B para discursivas.  \n\n"
+                    "Para gerar imagens automaticamente via DALL-E 3, use o painel abaixo."
+                ),
             )
+            st.divider()
+            _ui_dalle_imagens(arquivo_objetivas, arquivo_dissertativas)
+            st.divider()
 
-        if not erros:
-            versoes_geradas = ", ".join(LETRAS_PROVA[:qt_versoes])
-            extra = " + PDFs" if (gerar_pdf and PDF_DISPONIVEL and not erros_pdf) else ""
-            st.success(f"{qt_versoes} versão(ões) gerada(s): {versoes_geradas}{extra}")
+        # --- Botão de geração ---
+        gerar = st.button("Gerar Provas", type="primary", use_container_width=True)
 
-        zip_buffer.seek(0)
-        data_hora = datetime.now().strftime("%Y%m%d_%H%M%S")
-        nome_zip  = f"provas_{nome_completo_av}_{data_hora}.zip"
+        if gerar:
+            # Lê configurações da aba ⚙️
+            nome_professor     = st.session_state.get("cfg_professor", "").strip()
+            gabarito_tipo      = st.session_state.get("cfg_gabarito_tipo", "Padrão")
+            qt_dissertativas   = st.session_state.get("cfg_qt_dissertativas", 2) if tipo_codigo == "R" else 0
+            linhas_por_questao = st.session_state.get("cfg_linhas_resposta", 8)
+            gerar_pdf          = st.session_state.get("cfg_incluir_pdf", False) and PDF_DISPONIVEL
 
-        st.download_button(
-            label="Baixar ZIP com todas as provas",
-            data=zip_buffer,
-            file_name=nome_zip,
-            mime="application/zip",
-            use_container_width=True
-        )
+            modelo_caminho = os.path.join(BASE_DIR, MODELOS[(tipo_codigo, gabarito_tipo)])
+
+            # Pontuação (derivada das configurações)
+            if tipo_codigo == "R":
+                pontos_dis = "3,00 pts"
+            else:
+                pontos_dis = ""
+            pontos_obj = "2,00 pts" if tipo_codigo == "R" else ""
+
+            _usando_ia = st.session_state.get("ia_confirmadas", False)
+            _ia_obj    = st.session_state.get("ia_obj", [])
+            _ia_dis    = st.session_state.get("ia_dis", [])
+
+            # --- Validações ---
+            _erros_validacao = []
+            if not nome_professor:
+                _erros_validacao.append("Configure o nome do professor na aba ⚙️ Configurações antes de continuar.")
+            if not nome_disciplina.strip():
+                _erros_validacao.append("Preencha o nome da disciplina antes de continuar.")
+
+            tem_obj = arquivo_objetivas is not None or (_usando_ia and _ia_obj)
+            if not tem_obj:
+                _erros_validacao.append(
+                    "Carregue o arquivo de questões objetivas ou importe via IA antes de continuar."
+                )
+
+            tem_dis = (
+                arquivo_dissertativas is not None
+                or (_usando_ia and _ia_dis)
+            )
+            if tipo_codigo == "R" and not tem_dis:
+                _erros_validacao.append(
+                    "Carregue o arquivo de questões discursivas ou importe via IA antes de continuar."
+                )
+
+            if not os.path.exists(modelo_caminho):
+                _erros_validacao.append(
+                    f"Arquivo de modelo '{os.path.basename(modelo_caminho)}' não encontrado. "
+                    "Contate o administrador do sistema."
+                )
+
+            for _e in _erros_validacao:
+                st.error(_e)
+
+            if not _erros_validacao:
+                # --- Geração ---
+                with st.spinner("Lendo questões e gerando provas..."):
+
+                    # Monta dict de imagens carregadas: {filename: bytes}
+                    uploaded_images = {}
+                    if arquivos_imagens:
+                        for f_img in arquivos_imagens:
+                            uploaded_images[f_img.name] = f_img.getvalue()
+
+                    # Fonte das objetivas: XLSX tem prioridade; IA como fallback
+                    imagens_obj = {}
+                    if arquivo_objetivas is not None:
+                        questoes_objetivas, imagens_obj = get_questoes_xlsx(arquivo_objetivas)
+                        if not questoes_objetivas:
+                            st.error("Nenhuma questão objetiva válida encontrada. Verifique o arquivo XLSX.")
+                            st.stop()
+                    else:
+                        questoes_objetivas = _ia_obj
+
+                    if len(questoes_objetivas) < qt_questoes_objetivas:
+                        st.error(
+                            f"São necessárias **{qt_questoes_objetivas}** questões objetivas, "
+                            f"mas foram encontradas apenas **{len(questoes_objetivas)}**."
+                        )
+                        st.stop()
+
+                    questoes_dissertativas   = None
+                    gabaritos_dissertativas  = None
+                    imagens_dis = {}
+                    if tipo_codigo == "R":
+                        if arquivo_dissertativas is not None:
+                            questoes_dissertativas, imagens_dis = get_questoes_dissertativas_xlsx(arquivo_dissertativas)
+                            if not questoes_dissertativas:
+                                st.error("Nenhuma questão discursiva válida. Verifique o arquivo XLSX.")
+                                st.stop()
+                        else:
+                            questoes_dissertativas  = _ia_dis
+                            _ia_dis_gab = st.session_state.get("ia_dis_gab", [])
+                            gabaritos_dissertativas = {
+                                enunc: resp
+                                for enunc, resp in zip(questoes_dissertativas, _ia_dis_gab)
+                                if resp
+                            }
+
+                        if len(questoes_dissertativas) < qt_dissertativas:
+                            st.error(
+                                f"São necessárias ao menos **{qt_dissertativas}** questões discursivas, "
+                                f"mas foram encontradas apenas **{len(questoes_dissertativas)}**."
+                            )
+                            st.stop()
+
+                    gabaritos                     = {}
+                    gabaritos_dis_por_prova       = {}
+                    zip_buffer = BytesIO()
+                    erros      = []
+                    erros_pdf  = []
+
+                    # Monta dict {enunciado: bytes} — combina XLSX + IA (XLSX tem prioridade)
+                    imagens_mapa = {**imagens_obj, **imagens_dis}
+                    if imagens_mapa and uploaded_images is not None:
+                        faltando = [fname for fname in imagens_mapa.values() if fname not in uploaded_images]
+                        if faltando:
+                            st.warning(
+                                f"Imagem(ns) referenciada(s) mas não encontrada(s): "
+                                f"**{', '.join(faltando)}**. "
+                                "Faça o upload ou remova a tag `[img:]` da questão. "
+                                "A prova será gerada sem essas imagens."
+                            )
+                    imagens_xlsx = {
+                        enunc: uploaded_images[fname]
+                        for enunc, fname in imagens_mapa.items()
+                        if fname in uploaded_images
+                    } if uploaded_images else {}
+                    imagens_ia = st.session_state.get("ia_imgs", {})
+                    imagens_bytes = {**imagens_ia, **imagens_xlsx}
+
+                    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                        for i in range(qt_versoes):
+                            nome_prova = LETRAS_PROVA[i]
+                            simbolo    = SIMBOLOS_PROVA[nome_prova]
+
+                            questoes_selecionadas = random.sample(questoes_objetivas, qt_questoes_objetivas)
+                            questoes_formatadas, gabarito_da_prova, enunciados_obj = criar_prova(
+                                nome_prova, simbolo, qt_questoes_objetivas, questoes_selecionadas
+                            )
+
+                            dissertativas_selecionadas = None
+                            if tipo_codigo == "R" and questoes_dissertativas:
+                                dissertativas_selecionadas = random.sample(questoes_dissertativas, qt_dissertativas)
+                                if gabaritos_dissertativas:
+                                    gabaritos_dis_por_prova[nome_prova] = [
+                                        (enunc, gabaritos_dissertativas.get(enunc, ""))
+                                        for enunc in dissertativas_selecionadas
+                                    ]
+
+                            gabaritos[nome_prova] = gabarito_da_prova
+
+                            prova_bytes = gera_prova_bytes(
+                                modelo_caminho, nome_prova, questoes_formatadas,
+                                simbolo, tipo_codigo, dissertativas_selecionadas,
+                                professor=nome_professor,
+                                disciplina=nome_disciplina.strip(),
+                                linhas_por_questao=linhas_por_questao,
+                                pontos_obj=pontos_obj.strip(),
+                                pontos_dis=pontos_dis,
+                                imagens_questoes=imagens_bytes or None,
+                                enunciados_obj=enunciados_obj,
+                            )
+
+                            if prova_bytes:
+                                zf.writestr(f"prova_{nome_prova}.docx", prova_bytes)
+                                if gerar_pdf:
+                                    pdf_bytes, pdf_erro = docx_bytes_to_pdf_bytes(prova_bytes)
+                                    if pdf_bytes:
+                                        zf.writestr(f"prova_{nome_prova}.pdf", pdf_bytes)
+                                    else:
+                                        erros_pdf.append((nome_prova, pdf_erro))
+                            else:
+                                erros.append(nome_prova)
+
+                        # Gabarito geral
+                        gabarito_str = gera_gabarito_str(
+                            gabaritos, tipo_codigo,
+                            gabaritos_dissertativas_por_prova=gabaritos_dis_por_prova or None,
+                        )
+                        data_hora        = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        nome_completo_av = "Regimental" if tipo_codigo == "R" else "Final"
+                        nome_gabarito    = f"Gabarito_Geral_{nome_completo_av}_{data_hora}.txt"
+                        zf.writestr(nome_gabarito, gabarito_str.encode("utf-8"))
+
+                if erros:
+                    st.warning(f"Erro ao gerar versões: {', '.join(erros)}. As demais foram incluídas no ZIP.")
+
+                if erros_pdf:
+                    versoes_com_erro = ", ".join(v for v, _ in erros_pdf)
+                    msg_erro = erros_pdf[0][1] or "erro desconhecido"
+                    st.warning(
+                        f"Conversão para PDF falhou nas versões: {versoes_com_erro}.  \n"
+                        f"**Motivo:** {msg_erro}  \n"
+                        "Dica: feche o Microsoft Word completamente antes de gerar."
+                    )
+
+                if not erros:
+                    versoes_geradas = ", ".join(LETRAS_PROVA[:qt_versoes])
+                    extra = " + PDFs" if (gerar_pdf and PDF_DISPONIVEL and not erros_pdf) else ""
+                    st.success(f"{qt_versoes} versão(ões) gerada(s): {versoes_geradas}{extra}")
+
+                zip_buffer.seek(0)
+                data_hora = datetime.now().strftime("%Y%m%d_%H%M%S")
+                nome_zip  = f"provas_{nome_completo_av}_{data_hora}.zip"
+
+                st.download_button(
+                    label="Baixar ZIP com todas as provas",
+                    data=zip_buffer,
+                    file_name=nome_zip,
+                    mime="application/zip",
+                    use_container_width=True
+                )
 
     with tab_man:
         _ui_manual()
 
     with tab_faq:
         _ui_faq()
+
+    with tab_cfg:
+        _ui_configuracoes(ls)
 
 
 if __name__ == "__main__":

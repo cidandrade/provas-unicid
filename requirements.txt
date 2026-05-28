@@ -5,3 +5,4 @@ anthropic
 json-repair
 docx2pdf
 openai
+streamlit-local-storage

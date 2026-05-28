@@ -187,4 +187,37 @@ O PDF é uma conversão fiel do DOCX, realizada pelo Microsoft Word. O conteúdo
 
 ---
 
+---
+
+## Configurações e Persistência
+
+### 21. Onde configuro meu nome de professor?
+
+Na aba **⚙️ Configurações**. Preencha o campo **Nome do professor**, ajuste as demais preferências (gabarito, discursivas, linhas de resposta, PDF) e clique em **💾 Salvar como padrão**. As configurações ficam salvas no navegador e são carregadas automaticamente nas próximas sessões.
+
+---
+
+### 22. Minhas configurações sumiram. Por quê?
+
+As preferências são salvas no **localStorage do navegador** deste dispositivo específico. Elas podem sumir se:
+- Você acessou o app em outro computador ou navegador.
+- O histórico/dados do navegador foram limpos.
+- O modo de navegação anônima foi usado (dados não persistem).
+
+Para restaurar as configurações padrão do sistema, clique em **↺ Restaurar padrão** na aba Configurações.
+
+---
+
+### 23. Posso usar o Fluxo IA e o Fluxo XLSX ao mesmo tempo?
+
+**Sim.** As duas origens de questões são combinadas automaticamente pelo sistema. Você pode, por exemplo, carregar questões objetivas via XLSX (sub-aba **📊 Planilha XLSX**) e usar a IA apenas para as dissertativas (sub-aba **🤖 Importar por IA**), ou o contrário. Quando ambas as fontes estiverem ativas, o XLSX tem prioridade sobre as questões da IA.
+
+---
+
+### 24. O campo de imagens desapareceu da tela principal. Onde está?
+
+O upload de imagens e o painel DALL-E agora são **opt-in**: eles só aparecem quando você marca a caixa **"Incluir imagens nas provas"** na aba Gerador. Se a caixa estiver desmarcada, as seções ficam ocultas para manter a tela limpa.
+
+---
+
 *Dúvidas não listadas aqui? Consulte o [Manual do Usuário](Manual_Usuario_ProvaRegimental.md) ou entre em contato com a equipe de desenvolvimento.*
