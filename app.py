@@ -1496,7 +1496,7 @@ def _ui_configuracoes(ls):
     )
     st.slider(
         "Linhas de resposta por questão dissertativa",
-        min_value=4, max_value=20,
+        min_value=1, max_value=20,
         key="cfg_linhas_resposta",
     )
     st.checkbox(
