@@ -1431,7 +1431,8 @@ def _hidratar_config_do_local_storage(ls):
 
     _loaded_any = False
     for cfg_key, default in CONFIG_DEFAULTS.items():
-        val = ls.getItem(_LS_KEYS[cfg_key]) if ls is not None else None
+        ls_key = _LS_KEYS[cfg_key]
+        val = ls.getItem(ls_key, key=f"_ls_get_{ls_key}") if ls is not None else None
         if val is not None:
             if isinstance(default, bool):
                 val = val if isinstance(val, bool) else str(val).lower() in ("true", "1")
@@ -1456,7 +1457,7 @@ def _salvar_config_no_local_storage(ls):
         return
     for cfg_key, ls_key in _LS_KEYS.items():
         val = st.session_state.get(cfg_key, CONFIG_DEFAULTS[cfg_key])
-        ls.setItem(ls_key, val)
+        ls.setItem(ls_key, val, key=f"_ls_set_{ls_key}")
 
 
 def _restaurar_config_padrao(ls):
