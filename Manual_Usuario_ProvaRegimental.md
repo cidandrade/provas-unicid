@@ -214,7 +214,7 @@ Abra a aba **⚙️ Configurações**, ajuste os campos abaixo e clique em **�
 | **Nome do professor** | Aparece no cabeçalho de todas as provas |
 | **Tipo de gabarito** | Padrão ou Zipgrade (para leitura óptica) |
 | **Questões discursivas (AR)** | 2 ou 3 questões dissertativas por prova |
-| **Linhas de resposta** | Espaço para resposta manuscrita (4 a 20 linhas) |
+| **Linhas de resposta** | Espaço para resposta manuscrita (1 a 20 linhas) |
 | **Incluir PDF no download** | Gera também versões PDF além do DOCX |
 
 > **Nota:** as preferências ficam salvas **neste navegador** e **neste dispositivo**. Em outro computador ou navegador, configure novamente e salve.
