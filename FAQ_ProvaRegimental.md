@@ -220,4 +220,10 @@ O upload de imagens e o painel DALL-E agora são **opt-in**: eles só aparecem q
 
 ---
 
+### 25. Quantas linhas de resposta posso configurar para as questões dissertativas?
+
+De **1 a 20 linhas** por questão. O valor é ajustado na aba **⚙️ Configurações** com o controle deslizante **"Linhas de resposta por questão dissertativa"**. O padrão é 8 linhas. As linhas são inseridas diretamente no DOCX, logo abaixo de cada questão dissertativa.
+
+---
+
 *Dúvidas não listadas aqui? Consulte o [Manual do Usuário](Manual_Usuario_ProvaRegimental.md) ou entre em contato com a equipe de desenvolvimento.*
