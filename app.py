@@ -2531,7 +2531,7 @@ def main():
     )
 
     st.title("Gerador de Provas Unicid")
-    st.caption("Versão 3.7.0 · Prof.Me. Cid R. Andrade · profandrade@gmail.com · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
+    st.caption("Versão 3.7.0 · Prof.Me. Cid R. Andrade · [profandrade@gmail.com](mailto:profandrade@gmail.com) · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
 
     # Carrega (ou inicializa) configurações persistidas
     ls = _LocalStorage() if _LS_DISPONIVEL else None
