@@ -2561,6 +2561,13 @@ def _inject_css():
     --ds-shadow-md: 0 2px 4px rgba(0,0,0,0.1);
 }
 
+/* ── Fundo da aplicação ─────────────────────────── */
+.stApp,
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"] {
+    background-color: var(--ds-neutral-light) !important;
+}
+
 /* ── Tipografia ─────────────────────────────────── */
 html, body, [class*="css"] {
     font-family: var(--ds-font-body) !important;
