@@ -2566,6 +2566,7 @@ def _inject_css():
 [data-testid="stAppViewContainer"],
 [data-testid="stMain"] {
     background-color: var(--ds-neutral-light) !important;
+    color: var(--ds-text) !important;
 }
 
 /* ── Tipografia ─────────────────────────────────── */
