@@ -2691,6 +2691,19 @@ def main():
     )
     _inject_css()
 
+    if not st.session_state.get("_aviso_ui_dispensado"):
+        col_aviso, col_fechar = st.columns([0.93, 0.07])
+        with col_aviso:
+            st.warning(
+                "**Interface em atualização** — A aparência do aplicativo está sendo "
+                "ajustada. Algumas telas podem apresentar variações visuais temporárias."
+            )
+        with col_fechar:
+            st.write("")
+            if st.button("Fechar", key="_btn_fechar_aviso"):
+                st.session_state["_aviso_ui_dispensado"] = True
+                st.rerun()
+
     st.title("Gerador de Provas Unicid")
     st.caption("Versão 3.7.1 · Prof.Me. Cid R. Andrade · [profandrade@gmail.com](mailto:profandrade@gmail.com) · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
 
