@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Gerador de Provas Unicid - Versão Web
-Versão 3.7.0
+Versão 3.7.1
 Gera provas com questões de múltipla escolha e dissertativas,
 já no formato da Unicid
 
@@ -23,6 +23,10 @@ Este programa é Software Livre licenciado sob a GPL v3+.
 Veja https://www.gnu.org/licenses/ para mais detalhes.
 
 ChangeLog
+3.7.1 maio/2026: Aplica Design System UNICID v1.0: fontes Libre Baskerville/
+                  Inter/Roboto Mono via Google Fonts; tokens de cor (teal
+                  #18A89B, neutros, feedback); botões, inputs, sidebar, tabs
+                  e alerts estilizados conforme especificação institucional
 3.7.0 maio/2026: Refatoração da UI: aba ⚙️ Configurações com persistência via
                   localStorage (streamlit-local-storage); sub-abas "Planilha XLSX"
                   e "Importar por IA" dentro do Gerador; imagens tornadas opt-in
@@ -1722,7 +1726,7 @@ def _ui_importar_ia():
             st.markdown("**Questoes Objetivas**")
             for i, q in enumerate(obj_prev):
                 icone = "OK" if obj_ok[i] else "X"
-                cor   = "green" if obj_ok[i] else "red"
+                cor   = "#3EBD3E" if obj_ok[i] else "#D13B3B"
                 with st.container(border=True):
                     c_icon, c_texto, c_btn = st.columns([0.08, 0.80, 0.12])
                     with c_icon:
@@ -1755,7 +1759,7 @@ def _ui_importar_ia():
                     c_icon, c_texto, c_btn = st.columns([0.08, 0.80, 0.12])
                     with c_icon:
                         st.markdown(
-                            f"<span style='font-size:1.4rem;color:{'green' if dis_ok[i] else 'red'}'>"
+                            f"<span style='font-size:1.4rem;color:{'#3EBD3E' if dis_ok[i] else '#D13B3B'}'>"
                             f"{'✅' if dis_ok[i] else '❌'}</span>",
                             unsafe_allow_html=True,
                         )
@@ -2047,7 +2051,7 @@ def _ui_dalle_imagens(arquivo_obj, arquivo_dis):
                     with c_info:
                         _aprovada = _ok_imgs_atual.get(_enunc_img, True)
                         st.markdown(
-                            f"<span style='color:{'green' if _aprovada else 'red'};font-size:1.2rem'>"
+                            f"<span style='color:{'#3EBD3E' if _aprovada else '#D13B3B'};font-size:1.2rem'>"
                             f"{'✅ Aprovada' if _aprovada else '❌ Rejeitada'}</span>",
                             unsafe_allow_html=True,
                         )
@@ -2096,7 +2100,7 @@ def _img(nome):
 
 def _ui_manual():
     st.header("Manual do Usuário")
-    st.caption("Versão 3.7.0 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
+    st.caption("Versão 3.7.1 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
     st.divider()
 
     # 1. Introdução
@@ -2523,15 +2527,173 @@ def _ui_faq():
             st.markdown(resposta)
 
 
+def _inject_css():
+    st.markdown(
+        """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap');
+
+/* ── Design System UNICID v1.0 ─────────────────── */
+:root {
+    --ds-primary:        #18A89B;
+    --ds-primary-hover:  #15968A;
+    --ds-primary-active: #127A74;
+    --ds-accent:         #A86018;
+    --ds-error:          #D13B3B;
+
+    --ds-neutral-light:  #F9FCF9;
+    --ds-neutral-base:   #E5E7E5;
+    --ds-neutral-medium: #B0B5B0;
+    --ds-neutral-dark:   #213331;
+    --ds-text:           #2C3332;
+
+    --ds-success:        #3EBD3E;
+    --ds-warning:        #FAA311;
+    --ds-info:           #2F76EB;
+
+    --ds-font-heading: 'Libre Baskerville', Georgia, serif;
+    --ds-font-body:    'Inter', system-ui, sans-serif;
+    --ds-font-mono:    'Roboto Mono', 'Courier New', monospace;
+
+    --ds-radius-sm: 6px;
+    --ds-radius-md: 8px;
+    --ds-shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
+    --ds-shadow-md: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* ── Tipografia ─────────────────────────────────── */
+html, body, [class*="css"] {
+    font-family: var(--ds-font-body) !important;
+    color: var(--ds-text);
+}
+h1, h2, h3, h4,
+.stApp h1, .stApp h2, .stApp h3 {
+    font-family: var(--ds-font-heading) !important;
+    line-height: 1.2;
+}
+code, pre, .stCode, [data-testid="stCode"] {
+    font-family: var(--ds-font-mono) !important;
+}
+
+/* ── Botão Primário ─────────────────────────────── */
+.stButton > button[kind="primary"] {
+    background-color: var(--ds-primary) !important;
+    border-color:     var(--ds-primary) !important;
+    color: #FFFFFF !important;
+    height: 44px;
+    padding: 0 16px;
+    border-radius: var(--ds-radius-sm);
+    font-family: var(--ds-font-body) !important;
+    font-weight: 500;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+.stButton > button[kind="primary"]:hover {
+    background-color: var(--ds-primary-hover) !important;
+    border-color:     var(--ds-primary-hover) !important;
+}
+.stButton > button[kind="primary"]:active {
+    background-color: var(--ds-primary-active) !important;
+    border-color:     var(--ds-primary-active) !important;
+}
+
+/* ── Botão Secundário ───────────────────────────── */
+.stButton > button:not([kind="primary"]) {
+    background-color: var(--ds-neutral-light) !important;
+    border: 1px solid var(--ds-primary) !important;
+    color: var(--ds-primary) !important;
+    height: 44px;
+    padding: 0 16px;
+    border-radius: var(--ds-radius-sm);
+    font-family: var(--ds-font-body) !important;
+    transition: background-color 0.2s;
+}
+.stButton > button:not([kind="primary"]):hover {
+    background-color: var(--ds-neutral-base) !important;
+}
+
+/* ── Inputs / Formulários ───────────────────────── */
+.stTextInput input,
+.stNumberInput input,
+.stTextArea textarea {
+    font-family: var(--ds-font-body) !important;
+    border: 1px solid var(--ds-neutral-medium) !important;
+    border-radius: var(--ds-radius-sm) !important;
+    color: var(--ds-text) !important;
+    background-color: #FFFFFF !important;
+    padding: 8px 12px !important;
+    transition: border-color 0.2s;
+}
+.stTextInput input:focus,
+.stNumberInput input:focus,
+.stTextArea textarea:focus {
+    border: 2px solid var(--ds-primary) !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+.stTextInput input:disabled,
+.stNumberInput input:disabled {
+    background-color: var(--ds-neutral-base) !important;
+    cursor: not-allowed;
+}
+
+/* ── Sidebar ────────────────────────────────────── */
+[data-testid="stSidebar"] {
+    background-color: var(--ds-neutral-light) !important;
+}
+[data-testid="stSidebar"] [data-testid="stSidebarNavLink"][aria-current="page"] {
+    background-color: rgba(24,168,155,0.15) !important;
+    color: var(--ds-primary) !important;
+}
+
+/* ── Abas (Tabs) ────────────────────────────────── */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+}
+.stTabs [data-baseweb="tab"][aria-selected="true"] {
+    color: var(--ds-primary) !important;
+    border-bottom-color: var(--ds-primary) !important;
+}
+
+/* ── Alerts ─────────────────────────────────────── */
+[data-testid="stAlert"][data-type="success"] {
+    background-color: #E8F5E8 !important;
+    border-left: 4px solid var(--ds-success) !important;
+}
+[data-testid="stAlert"][data-type="warning"] {
+    background-color: #FFF4E6 !important;
+    border-left: 4px solid var(--ds-warning) !important;
+}
+[data-testid="stAlert"][data-type="error"] {
+    background-color: #FCE8E8 !important;
+    border-left: 4px solid var(--ds-error) !important;
+}
+[data-testid="stAlert"][data-type="info"] {
+    background-color: #EFF2FB !important;
+    border-left: 4px solid var(--ds-info) !important;
+}
+
+/* ── Cards / Expanders ──────────────────────────── */
+[data-testid="stExpander"] {
+    border: 1px solid var(--ds-neutral-base) !important;
+    border-radius: var(--ds-radius-md) !important;
+    box-shadow: var(--ds-shadow-sm) !important;
+}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+
 def main():
     st.set_page_config(
         page_title="Gerador de Provas Unicid",
         page_icon="📝",
         layout="wide"
     )
+    _inject_css()
 
     st.title("Gerador de Provas Unicid")
-    st.caption("Versão 3.7.0 · Prof.Me. Cid R. Andrade · [profandrade@gmail.com](mailto:profandrade@gmail.com) · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
+    st.caption("Versão 3.7.1 · Prof.Me. Cid R. Andrade · [profandrade@gmail.com](mailto:profandrade@gmail.com) · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
 
     # Carrega (ou inicializa) configurações persistidas
     ls = _LocalStorage() if _LS_DISPONIVEL else None
