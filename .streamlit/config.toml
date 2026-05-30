@@ -1,6 +1,48 @@
+[server]
+enableStaticServing = true
+
+# ── Fontes auto-hospedadas (static/fonts/) ────────────────────────────────
+[[theme.fontFaces]]
+family = "Inter"
+url    = "app/static/fonts/inter.woff2"
+weight = "400 600"
+
+[[theme.fontFaces]]
+family = "Libre Baskerville"
+url    = "app/static/fonts/libre-baskerville-400.woff2"
+weight = 400
+
+[[theme.fontFaces]]
+family = "Libre Baskerville"
+url    = "app/static/fonts/libre-baskerville-700.woff2"
+weight = 700
+
+[[theme.fontFaces]]
+family = "Libre Baskerville"
+url    = "app/static/fonts/libre-baskerville-400italic.woff2"
+weight = 400
+style  = "italic"
+
+[[theme.fontFaces]]
+family = "Roboto Mono"
+url    = "app/static/fonts/roboto-mono.woff2"
+weight = "400 500"
+
+# ── Design System UNICID v1.0 ─────────────────────────────────────────────
 [theme]
-primaryColor       = "#18A89B"
-backgroundColor    = "#F9FCF9"
-secondaryBackgroundColor = "#E5E7E5"
-textColor          = "#2C3332"
-font               = "sans serif"
+primaryColor             = "#18A89B"
+backgroundColor          = "#FFFFFF"
+secondaryBackgroundColor = "#F9FCF9"
+textColor                = "#2C3332"
+
+font        = "Inter"
+headingFont = "Libre Baskerville"
+codeFont    = "Roboto Mono"
+
+baseRadius = "6px"
+
+# Cores semânticas (alertas, badges, sparklines)
+greenColor  = "#3EBD3E"
+redColor    = "#D13B3B"
+orangeColor = "#FAA311"
+blueColor   = "#2F76EB"
