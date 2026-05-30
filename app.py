@@ -2531,151 +2531,40 @@ def _inject_css():
     st.markdown(
         """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap');
-
-/* ── Design System UNICID v1.0 ─────────────────── */
-:root {
-    --ds-primary:        #18A89B;
-    --ds-primary-hover:  #15968A;
-    --ds-primary-active: #127A74;
-    --ds-accent:         #A86018;
-    --ds-error:          #D13B3B;
-
-    --ds-neutral-light:  #F9FCF9;
-    --ds-neutral-base:   #E5E7E5;
-    --ds-neutral-medium: #B0B5B0;
-    --ds-neutral-dark:   #213331;
-    --ds-text:           #2C3332;
-
-    --ds-success:        #3EBD3E;
-    --ds-warning:        #FAA311;
-    --ds-info:           #2F76EB;
-
-    --ds-font-heading: 'Libre Baskerville', Georgia, serif;
-    --ds-font-body:    'Inter', system-ui, sans-serif;
-    --ds-font-mono:    'Roboto Mono', 'Courier New', monospace;
-
-    --ds-radius-sm: 6px;
-    --ds-radius-md: 8px;
-    --ds-shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
-    --ds-shadow-md: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-/* ── Tipografia ─────────────────────────────────── */
-html, body, [class*="css"] {
-    font-family: var(--ds-font-body) !important;
-}
-h1, h2, h3, h4,
-.stApp h1, .stApp h2, .stApp h3 {
-    font-family: var(--ds-font-heading) !important;
-    line-height: 1.2;
-}
-code, pre, .stCode, [data-testid="stCode"] {
-    font-family: var(--ds-font-mono) !important;
-}
-
-/* ── Botão Primário ─────────────────────────────── */
-.stButton > button[kind="primary"] {
-    background-color: var(--ds-primary) !important;
-    border-color:     var(--ds-primary) !important;
-    color: #FFFFFF !important;
-    height: 44px;
-    padding: 0 16px;
-    border-radius: var(--ds-radius-sm);
-    font-family: var(--ds-font-body) !important;
-    font-weight: 500;
-    transition: background-color 0.2s, border-color 0.2s;
-}
-.stButton > button[kind="primary"]:hover {
-    background-color: var(--ds-primary-hover) !important;
-    border-color:     var(--ds-primary-hover) !important;
-}
-.stButton > button[kind="primary"]:active {
-    background-color: var(--ds-primary-active) !important;
-    border-color:     var(--ds-primary-active) !important;
-}
-
-/* ── Botão Secundário ───────────────────────────── */
+/* ── Botão Secundário (outline) ─────────────────── */
 .stButton > button:not([kind="primary"]) {
-    background-color: var(--ds-neutral-light) !important;
-    border: 1px solid var(--ds-primary) !important;
-    color: var(--ds-primary) !important;
+    background-color: #FFFFFF;
+    border: 1px solid #18A89B;
+    color: #18A89B;
     height: 44px;
     padding: 0 16px;
-    border-radius: var(--ds-radius-sm);
-    font-family: var(--ds-font-body) !important;
     transition: background-color 0.2s;
 }
 .stButton > button:not([kind="primary"]):hover {
-    background-color: var(--ds-neutral-base) !important;
-}
-
-/* ── Inputs / Formulários ───────────────────────── */
-.stTextInput input,
-.stNumberInput input,
-.stTextArea textarea {
-    font-family: var(--ds-font-body) !important;
-    border: 1px solid var(--ds-neutral-medium) !important;
-    border-radius: var(--ds-radius-sm) !important;
-    color: var(--ds-text) !important;
-    background-color: #FFFFFF !important;
-    padding: 8px 12px !important;
-    transition: border-color 0.2s;
-}
-.stTextInput input:focus,
-.stNumberInput input:focus,
-.stTextArea textarea:focus {
-    border: 2px solid var(--ds-primary) !important;
-    outline: none !important;
-    box-shadow: none !important;
-}
-.stTextInput input:disabled,
-.stNumberInput input:disabled {
-    background-color: var(--ds-neutral-base) !important;
-    cursor: not-allowed;
-}
-
-/* ── Sidebar ────────────────────────────────────── */
-[data-testid="stSidebar"] {
-    background-color: var(--ds-neutral-light) !important;
-}
-[data-testid="stSidebar"] [data-testid="stSidebarNavLink"][aria-current="page"] {
-    background-color: rgba(24,168,155,0.15) !important;
-    color: var(--ds-primary) !important;
-}
-
-/* ── Abas (Tabs) ────────────────────────────────── */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 8px;
-}
-.stTabs [data-baseweb="tab"][aria-selected="true"] {
-    color: var(--ds-primary) !important;
-    border-bottom-color: var(--ds-primary) !important;
+    background-color: #E5E7E5;
 }
 
 /* ── Alerts ─────────────────────────────────────── */
 [data-testid="stAlert"][data-type="success"] {
-    background-color: #E8F5E8 !important;
-    border-left: 4px solid var(--ds-success) !important;
+    background-color: #E8F5E8;
+    border-left: 4px solid #3EBD3E;
 }
 [data-testid="stAlert"][data-type="warning"] {
-    background-color: #FFF4E6 !important;
-    border-left: 4px solid var(--ds-warning) !important;
+    background-color: #FFF4E6;
+    border-left: 4px solid #FAA311;
 }
 [data-testid="stAlert"][data-type="error"] {
-    background-color: #FCE8E8 !important;
-    border-left: 4px solid var(--ds-error) !important;
+    background-color: #FCE8E8;
+    border-left: 4px solid #D13B3B;
 }
 [data-testid="stAlert"][data-type="info"] {
-    background-color: #EFF2FB !important;
-    border-left: 4px solid var(--ds-info) !important;
+    background-color: #EFF2FB;
+    border-left: 4px solid #2F76EB;
 }
 
-/* ── Cards / Expanders ──────────────────────────── */
+/* ── Expanders (sombra) ─────────────────────────── */
 [data-testid="stExpander"] {
-    border: 1px solid var(--ds-neutral-base) !important;
-    border-radius: var(--ds-radius-md) !important;
-    box-shadow: var(--ds-shadow-sm) !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 </style>
 """,
