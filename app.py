@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Gerador de Provas Unicid - Versão Web
-Versão 3.7.1
+Versão 3.7.2
 Gera provas com questões de múltipla escolha e dissertativas,
 já no formato da Unicid
 
@@ -23,6 +23,9 @@ Este programa é Software Livre licenciado sob a GPL v3+.
 Veja https://www.gnu.org/licenses/ para mais detalhes.
 
 ChangeLog
+3.7.2 jun/2026: Cabeçalho fixo no topo com fundo teal (#18A89B) e título em
+                  fonte branca (Libre Baskerville); ao salvar as configurações,
+                  retorna automaticamente para a aba "Gerador de Provas"
 3.7.1 maio/2026: Aplica Design System UNICID v1.0: fontes Libre Baskerville/
                   Inter/Roboto Mono via Google Fonts; tokens de cor (teal
                   #18A89B, neutros, feedback); botões, inputs, sidebar, tabs
@@ -63,6 +66,7 @@ ChangeLog
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import random
 import os
 import zipfile
@@ -1519,7 +1523,9 @@ def _ui_configuracoes(ls):
     with col_salvar:
         if st.button("💾 Salvar como padrão", type="primary", use_container_width=True, key="btn_cfg_salvar"):
             _salvar_config_no_local_storage(ls)
-            st.success("Preferências salvas com sucesso!")
+            st.toast("Preferências salvas com sucesso!", icon="✅")
+            st.session_state["_ir_para_gerador"] = True
+            st.rerun()
     with col_restaurar:
         if st.button("↺ Restaurar padrão", use_container_width=True, key="btn_cfg_restaurar"):
             _restaurar_config_padrao(ls)
@@ -2100,7 +2106,7 @@ def _img(nome):
 
 def _ui_manual():
     st.header("Manual do Usuário")
-    st.caption("Versão 3.7.1 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
+    st.caption("Versão 3.7.2 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
     st.divider()
 
     # 1. Introdução
@@ -2531,6 +2537,23 @@ def _inject_css():
     st.markdown(
         """
 <style>
+/* ── Cabeçalho principal ────────────────────────── */
+.block-container { padding-top: 2.5rem; }
+.app-header {
+    background-color: #18A89B;
+    border-radius: 8px;
+    padding: 16px 28px;
+    margin-bottom: 12px;
+}
+.app-header h1 {
+    color: #FFFFFF;
+    font-family: "Libre Baskerville", serif;
+    font-weight: 700;
+    font-size: 2rem;
+    line-height: 1.2;
+    margin: 0;
+}
+
 /* ── Botão Secundário (outline) ─────────────────── */
 .stButton > button:not([kind="primary"]) {
     background-color: #FFFFFF;
@@ -2580,8 +2603,11 @@ def main():
     )
     _inject_css()
 
-    st.title("Gerador de Provas Unicid")
-    st.caption("Versão 3.7.1 · Prof.Me. Cid R. Andrade · [profandrade@gmail.com](mailto:profandrade@gmail.com) · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
+    st.markdown(
+        '<div class="app-header"><h1>Gerador de Provas Unicid</h1></div>',
+        unsafe_allow_html=True,
+    )
+    st.caption("Versão 3.7.2 · Prof.Me. Cid R. Andrade · [profandrade@gmail.com](mailto:profandrade@gmail.com) · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
 
     # Carrega (ou inicializa) configurações persistidas
     ls = _LocalStorage() if _LS_DISPONIVEL else None
@@ -2590,6 +2616,20 @@ def main():
     tab_ger, tab_man, tab_faq, tab_cfg = st.tabs([
         "🏠 Gerador de Provas", "📖 Manual", "❓ FAQ", "⚙️ Configurações"
     ])
+
+    # Após salvar as configurações, retorna para a aba "Gerador de Provas".
+    # O Streamlit 1.57 não expõe a aba ativa de forma nativa, então clicamos
+    # na primeira aba via JS no documento pai.
+    if st.session_state.pop("_ir_para_gerador", False):
+        components.html(
+            """
+            <script>
+            const tabs = window.parent.document.querySelectorAll('button[data-baseweb="tab"]');
+            if (tabs.length) { tabs[0].click(); }
+            </script>
+            """,
+            height=0,
+        )
 
     with tab_ger:
         # --- Campos por prova ---
