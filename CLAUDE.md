@@ -13,8 +13,9 @@ Prof. Rafael Cotrin (v3.4.0+).
   `_ler_enunciados_*`), os prompts (`_prompt_*`) e as chamadas às APIs
   Anthropic/OpenAI (`_chamar_api_claude`, `_gerar_imagem_dalle`,
   `processar_com_claude`). São o núcleo do app e devem ficar intactas.
-- **Não reescrever o histórico do `main`** — `git reset --hard` e `push --force`
-  proibidos (há co-autor). Trabalhar em branch e abrir Pull Request.
+- **Fluxo de Git liberado na `main`.** Commits diretos na `main` são permitidos;
+  branch + Pull Request é opcional. `push --force` e `git reset --hard` também
+  estão liberados — usar com cautela, pois há co-autor no histórico.
 - **Segredos** (chaves Anthropic/OpenAI) ficam em variáveis de ambiente /
   secrets, nunca no código nem neste arquivo.
 
