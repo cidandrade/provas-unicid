@@ -182,14 +182,14 @@ _VARIACOES_DIS = [
 # --- Configurações Globais ---
 
 SIMBOLOS_PROVA = {
-    "A": "**",
-    "B": "==",
-    "C": "%%",
-    "D": "//",
-    "E": "++",
+    "A": "--",
+    "B": "**",
+    "C": "==",
+    "D": "++",
+    "E": "||",
     "F": "##",
-    "G": "!!",
-    "H": "()"
+    "G": "//",
+    "H": "!!"
 }
 
 LETRAS_PROVA = list(SIMBOLOS_PROVA.keys())
