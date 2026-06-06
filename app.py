@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 Gerador de Provas Unicid - Versão Web
-Versão 3.7.2
+Versão 3.7.3
 Gera provas com questões de múltipla escolha e dissertativas,
 já no formato da Unicid
 
 Autor: Prof.Me. Cid R. Andrade (profandrade@gmail.com)
 Co-Autor: Prof.Me. Rafael Cotrin (a partir da v3.4.0)
-Data desta versão: maio/2026
+Data desta versão: jun/2026
 
 Formato do arquivo XLSX de questões OBJETIVAS:
 - Coluna A: Enunciado
@@ -23,6 +23,9 @@ Este programa é Software Livre licenciado sob a GPL v3+.
 Veja https://www.gnu.org/licenses/ para mais detalhes.
 
 ChangeLog
+3.7.3 jun/2026: Versão/autores movidos para rodapé; ordem das abas alterada
+                  para Gerador→Configurações→Manual→FAQ; resumo de configurações
+                  exibido abaixo do seletor de versões na aba Gerador
 3.7.2 jun/2026: Cabeçalho fixo no topo com fundo teal (#18A89B) e título em
                   fonte branca (Libre Baskerville); ao salvar as configurações,
                   retorna automaticamente para a aba "Gerador de Provas"
@@ -2106,7 +2109,7 @@ def _img(nome):
 
 def _ui_manual():
     st.header("Manual do Usuário")
-    st.caption("Versão 3.7.2 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
+    st.caption("Versão 3.7.3 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
     st.divider()
 
     # 1. Introdução
@@ -2607,14 +2610,13 @@ def main():
         '<div class="app-header"><h1>Gerador de Provas Unicid</h1></div>',
         unsafe_allow_html=True,
     )
-    st.caption("Versão 3.7.2 · Prof.Me. Cid R. Andrade · [profandrade@gmail.com](mailto:profandrade@gmail.com) · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
 
     # Carrega (ou inicializa) configurações persistidas
     ls = _LocalStorage() if _LS_DISPONIVEL else None
     _hidratar_config_do_local_storage(ls)
 
-    tab_ger, tab_man, tab_faq, tab_cfg = st.tabs([
-        "🏠 Gerador de Provas", "📖 Manual", "❓ FAQ", "⚙️ Configurações"
+    tab_ger, tab_cfg, tab_man, tab_faq = st.tabs([
+        "🏠 Gerador de Provas", "⚙️ Configurações", "📖 Manual", "❓ FAQ"
     ])
 
     # Após salvar as configurações, retorna para a aba "Gerador de Provas".
@@ -2647,21 +2649,23 @@ def main():
             qt_versoes = st.slider("Número de versões da prova", min_value=1, max_value=8, value=4)
             st.caption(f"Versões: {', '.join(LETRAS_PROVA[:qt_versoes])}")
 
-        nome_disciplina = st.text_input("Disciplina", placeholder="Nome da disciplina")
-
-        # Resumo das configurações ativas (vindas da aba ⚙️)
-        if tipo_codigo == "R":
-            _cfg_qt_dis = st.session_state.get("cfg_qt_dissertativas", 2)
-            _val_dis = 3.0 / _cfg_qt_dis
-            _por_questao_fmt = f"{_val_dis:.2f}".replace(".", ",") + " pt"
-            _cfg_resumo = (
-                f"Configurações ativas: professor **{st.session_state.get('cfg_professor', '') or '—'}** · "
-                f"gabarito **{st.session_state.get('cfg_gabarito_tipo', 'Padrão')}** · "
-                f"**{_cfg_qt_dis}** discursivas ({_por_questao_fmt} cada) · "
-                f"**{st.session_state.get('cfg_linhas_resposta', 8)}** linhas de resposta  \n"
-                "_Configure na aba ⚙️ Configurações._"
-            )
+            # Resumo das configurações ativas (vindas da aba ⚙️)
+            _cfg_prof    = st.session_state.get("cfg_professor", "") or "—"
+            _cfg_gab     = st.session_state.get("cfg_gabarito_tipo", "Padrão")
+            _cfg_pdf     = st.session_state.get("cfg_incluir_pdf", False)
+            _pdf_txt     = "PDF no download" if _cfg_pdf else "sem PDF"
+            if tipo_codigo == "R":
+                _cfg_qt_dis  = st.session_state.get("cfg_qt_dissertativas", 2)
+                _cfg_linhas  = st.session_state.get("cfg_linhas_resposta", 8)
+                _cfg_resumo  = (
+                    f"{_cfg_prof} · gabarito {_cfg_gab} · "
+                    f"{_cfg_qt_dis} discursiva(s) com {_cfg_linhas} linhas · {_pdf_txt}"
+                )
+            else:
+                _cfg_resumo = f"{_cfg_prof} · gabarito {_cfg_gab} · {_pdf_txt}"
             st.caption(_cfg_resumo)
+
+        nome_disciplina = st.text_input("Disciplina", placeholder="Nome da disciplina")
 
         st.divider()
 
@@ -2949,14 +2953,21 @@ def main():
                     use_container_width=True
                 )
 
+    with tab_cfg:
+        _ui_configuracoes(ls)
+
     with tab_man:
         _ui_manual()
 
     with tab_faq:
         _ui_faq()
 
-    with tab_cfg:
-        _ui_configuracoes(ls)
+    st.divider()
+    st.caption(
+        "Versão 3.7.3 · Prof.Me. Cid R. Andrade · "
+        "[profandrade@gmail.com](mailto:profandrade@gmail.com) · "
+        "Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)"
+    )
 
 
 if __name__ == "__main__":
