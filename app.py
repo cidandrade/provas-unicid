@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Gerador de Provas Unicid - Versão Web
-Versão 3.7.3
+Versão 3.7.4
 Gera provas com questões de múltipla escolha e dissertativas,
 já no formato da Unicid
 
@@ -23,6 +23,8 @@ Este programa é Software Livre licenciado sob a GPL v3+.
 Veja https://www.gnu.org/licenses/ para mais detalhes.
 
 ChangeLog
+3.7.4 jun/2026: Gabarito exportado como HTML com tabela formatada (DS UNICID);
+                  cada versão identificada também pelo símbolo do cabeçalho
 3.7.3 jun/2026: Versão/autores movidos para rodapé; ordem das abas alterada
                   para Gerador→Configurações→Manual→FAQ; resumo de configurações
                   exibido abaixo do seletor de versões na aba Gerador
@@ -84,6 +86,7 @@ from docx.shared import Cm
 from datetime import datetime
 import openpyxl
 import re
+import html as _html
 
 # PDF — Windows/Mac via docx2pdf (Word); Linux via LibreOffice headless
 import platform as _platform
@@ -1423,6 +1426,107 @@ def gera_gabarito_str(gabaritos_por_prova, tipo_avaliacao,
     return "\n".join(linhas)
 
 
+def gera_gabarito_html(gabaritos_por_prova, tipo_avaliacao,
+                       gabaritos_dissertativas_por_prova=None) -> str:
+    """Gera o gabarito como HTML com tabela formatada no DS UNICID."""
+    nome_completo = "Regimental" if tipo_avaliacao == "R" else "Final"
+
+    # Parseia cada gabarito_texto → {num: letra}
+    versoes = []
+    max_q = 0
+    for nome_prova, gabarito_texto in gabaritos_por_prova.items():
+        respostas = {}
+        for linha in gabarito_texto.splitlines():
+            partes = linha.split(": ", 1)
+            if len(partes) == 2 and partes[0].strip().isdigit():
+                num = int(partes[0].strip())
+                letra = partes[1].strip()
+                respostas[num] = letra[0] if letra and letra[0].isalpha() else "?"
+        if respostas:
+            max_q = max(max_q, max(respostas.keys()))
+        versoes.append((nome_prova, SIMBOLOS_PROVA.get(nome_prova, ""), respostas))
+
+    q_ths = "".join(f"<th>Q{i}</th>" for i in range(1, max_q + 1))
+    linhas_tabela = []
+    for idx, (nome_prova, simbolo, respostas) in enumerate(versoes):
+        bg = "#F9FCF9" if idx % 2 == 0 else "#FFFFFF"
+        cells = "".join(
+            f'<td>{respostas.get(i, "—")}</td>' for i in range(1, max_q + 1)
+        )
+        linhas_tabela.append(
+            f'<tr style="background:{bg}">'
+            f'<td style="font-weight:600">{nome_prova}</td>'
+            f'<td><code style="background:#F9FCF9;border:1px solid #E5E7E5;'
+            f'border-radius:3px;padding:1px 5px;font-family:monospace">{simbolo}</code></td>'
+            f"{cells}</tr>"
+        )
+    tbody = "\n".join(linhas_tabela)
+
+    # Seção de dissertativas
+    dis_html = ""
+    if gabaritos_dissertativas_por_prova:
+        secoes = []
+        for nome_prova, dis_list in gabaritos_dissertativas_por_prova.items():
+            if not dis_list:
+                continue
+            simbolo = SIMBOLOS_PROVA.get(nome_prova, "")
+            itens = ""
+            for i, (enunciado, resposta) in enumerate(dis_list, start=9):
+                itens += (
+                    f'<div style="background:#F9FCF9;border:1px solid #E5E7E5;'
+                    f'border-radius:6px;padding:.6rem .9rem;margin-bottom:.4rem">'
+                    f'<p style="font-weight:600;margin-bottom:.2rem">Questão {i}</p>'
+                    f'<p><b>Enunciado:</b> {_html.escape(enunciado)}</p>'
+                    f'<p><b>Resposta esperada:</b> {_html.escape(resposta)}</p>'
+                    f"</div>"
+                )
+            secoes.append(
+                f'<div style="margin-bottom:1.2rem">'
+                f'<h3 style="font-size:.9rem;color:#18A89B;margin-bottom:.4rem">'
+                f'Versão {nome_prova} '
+                f'<code style="background:#F9FCF9;border:1px solid #E5E7E5;'
+                f'border-radius:3px;padding:1px 5px;font-family:monospace;color:#2C3332">'
+                f'{simbolo}</code></h3>{itens}</div>'
+            )
+        if secoes:
+            dis_html = (
+                '<section style="margin-top:1.5rem">'
+                '<h2 style="font-size:1rem;font-weight:600;border-top:1px solid #E5E7E5;'
+                'padding-top:.8rem;margin-bottom:.8rem">Questões Dissertativas</h2>'
+                + "".join(secoes)
+                + "</section>"
+            )
+
+    return f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gabarito Geral — Avaliação {nome_completo}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{font-family:'Inter',sans-serif;color:#2C3332;background:#fff;padding:2rem;max-width:1000px;margin:0 auto}}
+h1{{font-size:1.2rem;font-weight:600;color:#18A89B;padding-bottom:.5rem;margin-bottom:1.5rem;border-bottom:2px solid #18A89B}}
+table{{width:100%;border-collapse:collapse;font-size:.9rem;margin-bottom:1rem}}
+th{{background:#18A89B;color:#fff;padding:.45rem .7rem;text-align:center;font-weight:600;white-space:nowrap}}
+td{{padding:.4rem .7rem;text-align:center;border:1px solid #E5E7E5}}
+tr:hover td{{background:#e6f5f4!important}}
+</style>
+</head>
+<body>
+<h1>Gabarito Geral &mdash; Avalia&ccedil;&atilde;o {nome_completo}</h1>
+<table>
+<thead><tr><th>Vers&atilde;o</th><th>S&iacute;mbolo</th>{q_ths}</tr></thead>
+<tbody>
+{tbody}
+</tbody>
+</table>
+{dis_html}
+</body>
+</html>"""
+
+
 # --- Interface Streamlit ---
 
 
@@ -2109,7 +2213,7 @@ def _img(nome):
 
 def _ui_manual():
     st.header("Manual do Usuário")
-    st.caption("Versão 3.7.3 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
+    st.caption("Versão 3.7.4 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
     st.divider()
 
     # 1. Introdução
@@ -2325,7 +2429,7 @@ Após configurar, clique em **Gerar Provas**. O ZIP baixado contém:
 
 - `prova_A.docx`, `prova_B.docx`, ... (um por versão)
 - `prova_A.pdf`, `prova_B.pdf`, ... (se PDF habilitado)
-- `Gabarito_Geral_*.txt` — gabarito de todas as versões
+- `Gabarito_Geral_*.html` — gabarito de todas as versões (abrir no navegador)
 
 **Estrutura do DOCX:**
 - Cabeçalho com dados institucionais e identificador da versão.
@@ -2915,14 +3019,14 @@ def main():
                                 erros.append(nome_prova)
 
                         # Gabarito geral
-                        gabarito_str = gera_gabarito_str(
+                        gabarito_html = gera_gabarito_html(
                             gabaritos, tipo_codigo,
                             gabaritos_dissertativas_por_prova=gabaritos_dis_por_prova or None,
                         )
                         data_hora        = datetime.now().strftime("%Y%m%d_%H%M%S")
                         nome_completo_av = "Regimental" if tipo_codigo == "R" else "Final"
-                        nome_gabarito    = f"Gabarito_Geral_{nome_completo_av}_{data_hora}.txt"
-                        zf.writestr(nome_gabarito, gabarito_str.encode("utf-8"))
+                        nome_gabarito    = f"Gabarito_Geral_{nome_completo_av}_{data_hora}.html"
+                        zf.writestr(nome_gabarito, gabarito_html.encode("utf-8"))
 
                 if erros:
                     st.warning(f"Erro ao gerar versões: {', '.join(erros)}. As demais foram incluídas no ZIP.")
@@ -2964,7 +3068,7 @@ def main():
 
     st.divider()
     st.caption(
-        "Versão 3.7.3 · Prof.Me. Cid R. Andrade · "
+        "Versão 3.7.4 · Prof.Me. Cid R. Andrade · "
         "[profandrade@gmail.com](mailto:profandrade@gmail.com) · "
         "Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)"
     )
