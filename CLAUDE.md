@@ -2,6 +2,58 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## **1\. Pense Antes de Codificar**
+**Não presuma. Não esconda confusão. Traga os prós e contras à tona.**
+
+Antes de implementar:
+* Declare suas premissas explicitamente. Se estiver incerto, pergunte.  
+* Se existirem múltiplas interpretações, apresente-as, não escolha em silêncio.  
+* Se existir uma abordagem mais simples, diga. Questione quando for necessário.  
+* Se algo não estiver claro, pare. Identifique o que está confuso. Pergunte.
+
+## **2\. Simplicidade em Primeiro Lugar**
+
+**O mínimo de código que resolve o problema. Nada especulativo.**
+
+* Sem funcionalidades além do que foi solicitado.  
+* Sem abstrações para códigos de uso único.  
+* Sem "flexibilidade" ou "configurabilidade" que não tenha sido pedida.  
+* Sem tratamento de erros para cenários impossíveis.  
+* Se você escreveu 200 linhas e poderiam ser 50, reescreva.  
+* Pergunte-se: "Um engenheiro sênior diria que isso está complicado demais?" Se sim, simplifique.
+
+## **3\. Alterações Cirúrgicas**
+**Toque apenas no que for necessário. Limpe apenas a sua própria sujeira.**
+
+Ao editar códigos existentes:
+* Não "melhore" códigos, comentários ou formatações adjacentes.  
+* Não faça refatoração de coisas que não estão quebradas.  
+* Adapte-se ao estilo existente, mesmo que você fizesse de forma diferente.  
+* Se notar código morto não relacionado, mencione, não delete.
+
+Quando suas alterações criarem "órfãos":
+* Remova imports/variáveis/funções que as SUAS alterações tornaram inúteis.  
+* Não remova código morto preexistente, a menos que seja solicitado.  
+
+O teste definitivo: Cada linha alterada deve rastrear diretamente o pedido do usuário.
+
+## **4\. Execução Orientada a Objetivos**
+**Defina os critérios de sucesso. Repita o ciclo até verificar.**
+
+Transforme tarefas em objetivos verificáveis:
+* "Adicionar validação" → "Escrever testes para entradas inválidas, depois fazê-los passar"  
+* "Corrigir o bug" → "Escrever um teste que o reproduza, depois fazê-lo passar"  
+* "Refatorar X" → "Garantir que os testes passem antes e depois"
+
+Para tarefas de várias etapas, apresente um plano breve:
+```
+1. [Etapa] → verificar: [validação]  
+2. [Etapa] → verificar: [validação] 
+3. [Etapa] → verificar: [validação]
+```
+
+Critérios de sucesso sólidos permitem que você avance de forma independente. Critérios fracos ("fazer funcionar") exigem esclarecimentos constantes.  
+
 # provas-unicid — Contexto do projeto
 
 App **Streamlit** (`app.py`, ~3000 linhas) que gera provas regimentais (AR) e
