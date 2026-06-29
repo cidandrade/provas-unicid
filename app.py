@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Gerador de Provas Unicid - Versão Web
-Versão 3.7.4
+Versão 3.7.5
 Gera provas com questões de múltipla escolha e dissertativas,
 já no formato da Unicid
 
@@ -23,6 +23,8 @@ Este programa é Software Livre licenciado sob a GPL v3+.
 Veja https://www.gnu.org/licenses/ para mais detalhes.
 
 ChangeLog
+3.7.5 jun/2026: Arquivos de prova, gabarito e ZIP nomeados com professor e data
+                  de realização (novo campo de data na aba Gerador)
 3.7.4 jun/2026: Gabarito exportado como HTML com tabela formatada (DS UNICID);
                   cada versão identificada também pelo símbolo do cabeçalho
 3.7.3 jun/2026: Versão/autores movidos para rodapé; ordem das abas alterada
@@ -86,6 +88,7 @@ from docx.shared import Cm
 from datetime import datetime
 import openpyxl
 import re
+import unicodedata
 import html as _html
 
 # PDF — Windows/Mac via docx2pdf (Word); Linux via LibreOffice headless
@@ -208,6 +211,24 @@ MODELOS = {
 
 _MD_PATTERN  = re.compile(r'\*\*\*(.*?)\*\*\*|\*\*(.*?)\*\*|\*(.*?)\*', re.DOTALL)
 _IMG_TAG_PAT = re.compile(r'\[img:([^\]]+)\]', re.IGNORECASE)
+
+# Títulos acadêmicos removidos de nomes de professor ao montar nomes de arquivo.
+_TITULOS_RE = re.compile(r'\b(?:profa?|dra?|msc|ms|me|ma|phd|esp)\.?\b', re.IGNORECASE)
+
+
+def _slug_arquivo(texto):
+    """Normaliza um nome para uso em nome de arquivo.
+
+    Remove acentos e títulos acadêmicos e troca não-alfanuméricos por '_'.
+    "Prof.Me. Cid R. Andrade" -> "Cid_R_Andrade".
+    """
+    sem_acento = (
+        unicodedata.normalize("NFKD", texto)
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
+    sem_titulos = _TITULOS_RE.sub("", sem_acento)
+    return re.sub(r"[^A-Za-z0-9]+", "_", sem_titulos).strip("_")
 
 
 def parse_img_tags(text):
@@ -2213,7 +2234,7 @@ def _img(nome):
 
 def _ui_manual():
     st.header("Manual do Usuário")
-    st.caption("Versão 3.7.4 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
+    st.caption("Versão 3.7.5 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
     st.divider()
 
     # 1. Introdução
@@ -2425,11 +2446,13 @@ Funciona com questões de qualquer fonte — XLSX carregado ou questões importa
     # 9. Geração e download
     st.subheader("9. Geração e Download")
     st.markdown("""
-Após configurar, clique em **Gerar Provas**. O ZIP baixado contém:
+Após configurar, clique em **Gerar Provas**. Os arquivos recebem o nome do
+professor e a **data de realização** (`DD-MM`). Exemplo para `Cid_R_Andrade`
+em `29-06`, o ZIP baixado contém:
 
-- `prova_A.docx`, `prova_B.docx`, ... (um por versão)
-- `prova_A.pdf`, `prova_B.pdf`, ... (se PDF habilitado)
-- `Gabarito_Geral_*.html` — gabarito de todas as versões (abrir no navegador)
+- `Cid_R_Andrade_A_29-06.docx`, `..._B_29-06.docx`, ... (um por versão)
+- `Cid_R_Andrade_A_29-06.pdf`, `..._B_29-06.pdf`, ... (se PDF habilitado)
+- `Gabarito_Cid_R_Andrade_29-06.html` — gabarito de todas as versões (abrir no navegador)
 
 **Estrutura do DOCX:**
 - Cabeçalho com dados institucionais e identificador da versão.
@@ -2769,7 +2792,15 @@ def main():
                 _cfg_resumo = f"{_cfg_prof} · gabarito {_cfg_gab} · {_pdf_txt}"
             st.caption(_cfg_resumo)
 
-        nome_disciplina = st.text_input("Disciplina", placeholder="Nome da disciplina")
+        col_disc, col_data = st.columns([2, 1], gap="large")
+        with col_disc:
+            nome_disciplina = st.text_input("Disciplina", placeholder="Nome da disciplina")
+        with col_data:
+            data_prova = st.date_input(
+                "Data de realização da prova",
+                value=datetime.now().date(),
+                format="DD/MM/YYYY",
+            )
 
         st.divider()
 
@@ -2974,6 +3005,9 @@ def main():
                     imagens_ia = st.session_state.get("ia_imgs", {})
                     imagens_bytes = {**imagens_ia, **imagens_xlsx}
 
+                    prof_slug = _slug_arquivo(nome_professor) or "professor"
+                    data_str  = data_prova.strftime("%d-%m")
+
                     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
                         for i in range(qt_versoes):
                             nome_prova = LETRAS_PROVA[i]
@@ -3008,11 +3042,11 @@ def main():
                             )
 
                             if prova_bytes:
-                                zf.writestr(f"prova_{nome_prova}.docx", prova_bytes)
+                                zf.writestr(f"{prof_slug}_{nome_prova}_{data_str}.docx", prova_bytes)
                                 if gerar_pdf:
                                     pdf_bytes, pdf_erro = docx_bytes_to_pdf_bytes(prova_bytes)
                                     if pdf_bytes:
-                                        zf.writestr(f"prova_{nome_prova}.pdf", pdf_bytes)
+                                        zf.writestr(f"{prof_slug}_{nome_prova}_{data_str}.pdf", pdf_bytes)
                                     else:
                                         erros_pdf.append((nome_prova, pdf_erro))
                             else:
@@ -3023,9 +3057,8 @@ def main():
                             gabaritos, tipo_codigo,
                             gabaritos_dissertativas_por_prova=gabaritos_dis_por_prova or None,
                         )
-                        data_hora        = datetime.now().strftime("%Y%m%d_%H%M%S")
                         nome_completo_av = "Regimental" if tipo_codigo == "R" else "Final"
-                        nome_gabarito    = f"Gabarito_Geral_{nome_completo_av}_{data_hora}.html"
+                        nome_gabarito    = f"Gabarito_{prof_slug}_{data_str}.html"
                         zf.writestr(nome_gabarito, gabarito_html.encode("utf-8"))
 
                 if erros:
@@ -3046,8 +3079,7 @@ def main():
                     st.success(f"{qt_versoes} versão(ões) gerada(s): {versoes_geradas}{extra}")
 
                 zip_buffer.seek(0)
-                data_hora = datetime.now().strftime("%Y%m%d_%H%M%S")
-                nome_zip  = f"provas_{nome_completo_av}_{data_hora}.zip"
+                nome_zip  = f"{prof_slug}_{nome_completo_av}_{data_str}.zip"
 
                 st.download_button(
                     label="Baixar ZIP com todas as provas",
@@ -3068,7 +3100,7 @@ def main():
 
     st.divider()
     st.caption(
-        "Versão 3.7.4 · Prof.Me. Cid R. Andrade · "
+        "Versão 3.7.5 · Prof.Me. Cid R. Andrade · "
         "[profandrade@gmail.com](mailto:profandrade@gmail.com) · "
         "Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)"
     )
