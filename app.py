@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Gerador de Provas Unicid - Versão Web
-Versão 3.8.0
+Versão 3.8.1
 Gera provas com questões de múltipla escolha e dissertativas,
 já no formato da Unicid
 
@@ -23,8 +23,10 @@ Este programa é Software Livre licenciado sob a GPL v3+.
 Veja https://www.gnu.org/licenses/ para mais detalhes.
 
 ChangeLog
+3.8.1 out/2026: Banco de Questões exige login Google (st.login) em vez de e-mail
+                  digitado; as demais sub-abas continuam sem login
 3.8.0 out/2026: Terceira sub-aba "Banco de Questões": carrega questões do
-                  BancoProvas (e-mail do professor + disciplina + dia/turno/turma),
+                  BancoProvas (professor + disciplina + dia/turno/turma),
                   com a regra dos 10% e as imagens das questões
 3.7.5 jun/2026: Arquivos de prova, gabarito e ZIP nomeados com professor e data
                   de realização (novo campo de data na aba Gerador)
@@ -1981,6 +1983,14 @@ def _banco_cliente():
     return _banco.criar_cliente(info)
 
 
+def _banco_login_configurado():
+    """st.login exige a seção [auth] (client_id, client_secret, ...) nos secrets."""
+    try:
+        return "auth" in st.secrets
+    except Exception:
+        return False
+
+
 def _banco_em_uso():
     """As questões ativas (ia_obj/ia_dis) ainda são as carregadas do banco?"""
     return (
@@ -2026,38 +2036,59 @@ def _ui_carregar_banco():
     st.caption(
         "Carregue questões que você cadastrou no "
         "[BancoProvas](https://bco-provas.netlify.app). "
-        "Use o mesmo e-mail do seu login na Ágora.  \n"
+        "Entre com a mesma conta Google do seu login na Ágora.  \n"
         "Quem contribuiu com **10% ou mais** das questões de uma disciplina "
         "usa todas as questões dela; os demais usam só as próprias."
     )
 
-    col_email, col_buscar = st.columns([3, 1], vertical_alignment="bottom")
-    with col_email:
-        email = st.text_input("E-mail do professor", key="banco_email", placeholder="nome@unicid.edu.br")
-    with col_buscar:
-        buscar = st.button("Buscar disciplinas", key="btn_banco_buscar", use_container_width=True)
+    # O e-mail vem do login Google (st.login), nunca de um campo digitado:
+    # sem isso, qualquer um que soubesse o e-mail de um professor veria o banco.
+    if not _banco_login_configurado():
+        st.warning(
+            "Login Google não configurado neste servidor "
+            "(falta a seção `[auth]` nos secrets do Streamlit)."
+        )
+        return
+    if not st.user.is_logged_in:
+        st.info(
+            "Entre com Google para usar o Banco de Questões. "
+            "Ao voltar do login a página recarrega: faça o login antes de preencher o resto da prova."
+        )
+        st.button("Entrar com Google", type="primary", key="btn_banco_login", on_click=st.login)
+        return
 
-    if buscar:
+    email = (st.user.get("email") or "").strip()
+    col_conta, col_sair = st.columns([3, 1], vertical_alignment="center")
+    with col_conta:
+        st.caption(f"Conectado como **{email}**")
+    with col_sair:
+        st.button("Sair", key="btn_banco_logout", on_click=st.logout, use_container_width=True)
+    if not email or st.user.get("email_verified") is False:
+        st.error("A conta Google não informou um e-mail verificado.")
+        return
+
+    atualizar = st.button("Atualizar disciplinas", key="btn_banco_buscar")
+    if atualizar or st.session_state.get("banco_prof_email") != email:
         for k in ("banco_prof", "banco_disciplinas"):
             st.session_state.pop(k, None)
-        if not email.strip():
-            st.error("Informe o e-mail antes de buscar.")
-        else:
-            with st.spinner("Consultando o Banco de Questões..."):
-                try:
-                    prof = _banco.buscar_professor_por_email(db, email)
-                    disciplinas = _banco.listar_disciplinas_do_professor(db, prof["uid"]) if prof else []
-                except Exception as e:
-                    st.error(f"Erro ao consultar o Banco de Questões: {e}")
-                    return
-            if not prof:
-                st.error("E-mail não encontrado entre os professores aprovados na Ágora.")
-            else:
-                st.session_state["banco_prof"] = prof
-                st.session_state["banco_disciplinas"] = disciplinas
+        with st.spinner("Consultando o Banco de Questões..."):
+            try:
+                prof = _banco.buscar_professor_por_email(db, email)
+                disciplinas = _banco.listar_disciplinas_do_professor(db, prof["uid"]) if prof else []
+            except Exception as e:
+                st.error(f"Erro ao consultar o Banco de Questões: {e}")
+                return
+        st.session_state["banco_prof_email"] = email
+        if prof:
+            st.session_state["banco_prof"] = prof
+            st.session_state["banco_disciplinas"] = disciplinas
 
     prof = st.session_state.get("banco_prof")
     if not prof:
+        st.error(
+            f"**{email}** não está entre os professores aprovados na Ágora. "
+            "Entre com a conta que você usa na Ágora."
+        )
         return
     disciplinas = st.session_state.get("banco_disciplinas", [])
     if not disciplinas:
@@ -2440,7 +2471,7 @@ def _img(nome):
 
 def _ui_manual():
     st.header("Manual do Usuário")
-    st.caption("Versão 3.8.0 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
+    st.caption("Versão 3.8.1 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
     st.divider()
 
     # 1. Introdução
@@ -2589,7 +2620,8 @@ Use as questões que você cadastrou no [BancoProvas](https://bco-provas.netlify
 o banco de questões dos professores da Unicid.
 
 1. Abra a sub-aba **🗄️ Banco de Questões**.
-2. Digite o **e-mail do seu login na Ágora** e clique em **Buscar disciplinas**.
+2. Clique em **Entrar com Google** e use a **mesma conta Google do seu login na Ágora**.
+   A página recarrega ao voltar do login: entre antes de preencher o resto da prova.
 3. Escolha a **disciplina** e, se quiser, filtre por **dia da semana**, **turno** e **turma**
    (questões sem turno ou turma definidos servem para qualquer um).
 4. Clique em **Carregar questões do banco** e depois em **Gerar Provas**.
@@ -3329,7 +3361,7 @@ def main():
 
     st.divider()
     st.caption(
-        "Versão 3.8.0 · Prof.Me. Cid R. Andrade · "
+        "Versão 3.8.1 · Prof.Me. Cid R. Andrade · "
         "[profandrade@gmail.com](mailto:profandrade@gmail.com) · "
         "Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)"
     )
