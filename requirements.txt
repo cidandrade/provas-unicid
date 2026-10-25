@@ -6,3 +6,4 @@ json-repair
 docx2pdf
 openai
 streamlit-local-storage
+google-cloud-firestore

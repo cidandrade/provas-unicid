@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Gerador de Provas Unicid - Versão Web
-Versão 3.7.5
+Versão 3.8.0
 Gera provas com questões de múltipla escolha e dissertativas,
 já no formato da Unicid
 
@@ -23,6 +23,9 @@ Este programa é Software Livre licenciado sob a GPL v3+.
 Veja https://www.gnu.org/licenses/ para mais detalhes.
 
 ChangeLog
+3.8.0 out/2026: Terceira sub-aba "Banco de Questões": carrega questões do
+                  BancoProvas (e-mail do professor + disciplina + dia/turno/turma),
+                  com a regra dos 10% e as imagens das questões
 3.7.5 jun/2026: Arquivos de prova, gabarito e ZIP nomeados com professor e data
                   de realização (novo campo de data na aba Gerador)
 3.7.4 jun/2026: Gabarito exportado como HTML com tabela formatada (DS UNICID);
@@ -134,6 +137,14 @@ try:
     _JSONREPAIR = True
 except ImportError:
     _JSONREPAIR = False
+
+# Leitura do BancoProvas (Firestore unicid-b5a4d) — opcional
+try:
+    import bancoprovas_client as _banco
+    BANCO_DISPONIVEL = True
+except ImportError:
+    _banco = None
+    BANCO_DISPONIVEL = False
 
 # Persistência de configurações do professor via localStorage do navegador
 try:
@@ -1960,6 +1971,201 @@ def _ui_importar_ia():
             )
 
 
+@st.cache_resource(show_spinner=False)
+def _banco_cliente():
+    """Cliente Firestore do BancoProvas, ou None se a conta de serviço não estiver configurada."""
+    try:
+        info = st.secrets["gcp_service_account"]
+    except Exception:
+        return None
+    return _banco.criar_cliente(info)
+
+
+def _banco_em_uso():
+    """As questões ativas (ia_obj/ia_dis) ainda são as carregadas do banco?"""
+    return (
+        st.session_state.get("ia_confirmadas", False)
+        and "banco_obj" in st.session_state
+        and st.session_state.get("ia_obj") is st.session_state["banco_obj"]
+        and st.session_state.get("ia_dis") is st.session_state["banco_dis"]
+    )
+
+
+def _ui_carregar_banco():
+    """
+    Sub-aba de carga de questões do BancoProvas. Popula as mesmas chaves de
+    st.session_state do fluxo de IA (ia_obj, ia_dis, ia_dis_gab, ia_confirmadas)
+    e guarda as imagens em banco_imagens ({enunciado: bytes}).
+    """
+    if not BANCO_DISPONIVEL:
+        st.warning(
+            "Pacote `google-cloud-firestore` não instalado.  \n"
+            "Execute no terminal: `pip install google-cloud-firestore`"
+        )
+        return
+
+    try:
+        db = _banco_cliente()
+    except Exception as e:
+        st.error(f"Erro ao conectar ao Banco de Questões: {e}")
+        return
+    if db is None:
+        st.warning(
+            "Banco de Questões não configurado neste servidor "
+            "(falta `gcp_service_account` nos secrets do Streamlit)."
+        )
+        return
+
+    _msg_sucesso = st.session_state.pop("banco_msg_sucesso", None)
+    if _msg_sucesso:
+        st.success(_msg_sucesso)
+    _msg_aviso = st.session_state.pop("banco_msg_aviso", None)
+    if _msg_aviso:
+        st.warning(_msg_aviso)
+
+    st.caption(
+        "Carregue questões que você cadastrou no "
+        "[BancoProvas](https://bco-provas.netlify.app). "
+        "Use o mesmo e-mail do seu login na Ágora.  \n"
+        "Quem contribuiu com **10% ou mais** das questões de uma disciplina "
+        "usa todas as questões dela; os demais usam só as próprias."
+    )
+
+    col_email, col_buscar = st.columns([3, 1], vertical_alignment="bottom")
+    with col_email:
+        email = st.text_input("E-mail do professor", key="banco_email", placeholder="nome@unicid.edu.br")
+    with col_buscar:
+        buscar = st.button("Buscar disciplinas", key="btn_banco_buscar", use_container_width=True)
+
+    if buscar:
+        for k in ("banco_prof", "banco_disciplinas"):
+            st.session_state.pop(k, None)
+        if not email.strip():
+            st.error("Informe o e-mail antes de buscar.")
+        else:
+            with st.spinner("Consultando o Banco de Questões..."):
+                try:
+                    prof = _banco.buscar_professor_por_email(db, email)
+                    disciplinas = _banco.listar_disciplinas_do_professor(db, prof["uid"]) if prof else []
+                except Exception as e:
+                    st.error(f"Erro ao consultar o Banco de Questões: {e}")
+                    return
+            if not prof:
+                st.error("E-mail não encontrado entre os professores aprovados na Ágora.")
+            else:
+                st.session_state["banco_prof"] = prof
+                st.session_state["banco_disciplinas"] = disciplinas
+
+    prof = st.session_state.get("banco_prof")
+    if not prof:
+        return
+    disciplinas = st.session_state.get("banco_disciplinas", [])
+    if not disciplinas:
+        st.info(
+            f"**{prof['nome'] or prof['email']}** ainda não tem questões no BancoProvas. "
+            "Cadastre questões em https://bco-provas.netlify.app para usá-las aqui."
+        )
+        return
+
+    def _rotulo_disciplina(d):
+        if d["elegivel"]:
+            return f"{d['nome']} — todas as {d['total']} questões"
+        return f"{d['nome']} — {d['meu']} questão(ões) suas"
+
+    disciplina = st.selectbox(
+        "Disciplina",
+        disciplinas,
+        format_func=_rotulo_disciplina,
+        key="banco_disciplina",
+    )
+    if not disciplina["elegivel"]:
+        st.caption(
+            f"Você contribuiu com {disciplina['meu']} de {disciplina['total']} questões desta "
+            "disciplina — abaixo de 10%, por isso só as suas são carregadas."
+        )
+
+    _dias  = [None] + list(_banco.DIAS) + ["sem"]
+    _turno = [None] + list(_banco.TURNOS)
+    _turma = [None] + list(_banco.TURMAS)
+    col_dia, col_turno, col_turma = st.columns(3)
+    with col_dia:
+        dia = st.selectbox(
+            "Dia da semana", _dias, key="banco_dia",
+            format_func=lambda v: "Todos" if v is None else ("Sem dia definido" if v == "sem" else _banco.DIAS[v]),
+        )
+    with col_turno:
+        turno = st.selectbox(
+            "Turno", _turno, key="banco_turno",
+            format_func=lambda v: "Qualquer" if v is None else _banco.TURNOS[v],
+        )
+    with col_turma:
+        turma = st.selectbox(
+            "Turma", _turma, key="banco_turma",
+            format_func=lambda v: "Qualquer" if v is None else f"Turma {v}",
+        )
+    st.caption("Questões sem turno ou turma definidos servem para qualquer turno ou turma.")
+
+    col_carregar, col_limpar = st.columns(2)
+    with col_carregar:
+        carregar = st.button("Carregar questões do banco", type="primary", key="btn_banco_carregar")
+    with col_limpar:
+        limpar = st.button("Descartar questões do banco", key="btn_banco_limpar",
+                           disabled=not _banco_em_uso())
+
+    if carregar:
+        with st.spinner("Carregando questões e imagens..."):
+            try:
+                res = _banco.carregar_questoes_banco(
+                    db, prof["uid"], disciplina["id"], dia=dia, turno=turno, turma=turma,
+                )
+                imagens, sem_imagem = _banco.baixar_imagens(db, res["imagens"])
+            except Exception as e:
+                st.error(f"Erro ao carregar questões do banco: {e}")
+                return
+        obj, dis = res["objetivas"], res["dissertativas"]
+        if not obj and not dis:
+            st.warning("Nenhuma questão encontrada para essa disciplina com os filtros escolhidos.")
+            return
+        st.session_state["ia_obj"]         = obj
+        st.session_state["ia_dis"]         = dis
+        st.session_state["ia_dis_gab"]     = [""] * len(dis)
+        st.session_state["ia_obj_ok"]      = [True] * len(obj)
+        st.session_state["ia_dis_ok"]      = [True] * len(dis)
+        st.session_state["ia_confirmadas"] = True
+        st.session_state.pop("ia_texto_doc", None)
+        st.session_state["banco_imagens"]  = imagens
+        st.session_state["banco_obj"]      = obj
+        st.session_state["banco_dis"]      = dis
+        st.session_state["banco_msg_sucesso"] = (
+            f"Banco de Questões — **{disciplina['nome']}**: **{len(obj)}** objetiva(s) · "
+            f"**{len(dis)}** discursiva(s)"
+            + (f" · **{len(imagens)}** imagem(ns)" if imagens else "")
+            + ". Pronto para gerar a prova."
+        )
+        avisos = []
+        if res["ignoradas"]:
+            avisos.append(f"{res['ignoradas']} objetiva(s) ignorada(s) por não terem exatamente 5 alternativas e 1 correta.")
+        if res["sem_texto"]:
+            avisos.append(f"{res['sem_texto']} questão(ões) ignorada(s) por não terem texto no enunciado (só imagem).")
+        if sem_imagem:
+            avisos.append(f"{len(sem_imagem)} questão(ões) referenciam imagem que não está no banco; serão geradas sem ela.")
+        if avisos:
+            st.session_state["banco_msg_aviso"] = " ".join(avisos)
+        st.rerun()
+
+    if limpar:
+        for k in ("ia_obj", "ia_dis", "ia_dis_gab", "ia_obj_ok", "ia_dis_ok",
+                  "ia_confirmadas", "banco_imagens", "banco_obj", "banco_dis"):
+            st.session_state.pop(k, None)
+        st.rerun()
+
+    if _banco_em_uso():
+        st.info(
+            "As questões do banco estão ativas e aparecem também na revisão da aba "
+            "🤖 Importar por IA. Uma planilha XLSX carregada tem prioridade sobre elas."
+        )
+
+
 def _ler_enunciados_xlsx_obj(arquivo):
     """Retorna lista de tuplas (enunciado,) lendo apenas coluna A do XLSX de objetivas."""
     if arquivo is None:
@@ -2234,7 +2440,7 @@ def _img(nome):
 
 def _ui_manual():
     st.header("Manual do Usuário")
-    st.caption("Versão 3.7.5 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
+    st.caption("Versão 3.8.0 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
     st.divider()
 
     # 1. Introdução
@@ -2245,7 +2451,7 @@ produzindo múltiplas versões embaralhadas de uma mesma prova para garantir int
 
 **Principais capacidades:**
 - Geração de provas **AR** (Regimental) e **AF** (Final) em DOCX e PDF.
-- Dois fluxos de entrada: **planilha XLSX** (método tradicional) ou **importação via IA** (Claude AI).
+- Três fluxos de entrada: **planilha XLSX** (método tradicional), **importação via IA** (Claude AI) ou **Banco de Questões** (BancoProvas).
 - Até **8 versões** (A–H) com embaralhamento automático de questões e alternativas.
 - Exportação em **ZIP** com DOCXs, PDFs opcionais e gabarito em texto.
 """)
@@ -2376,8 +2582,28 @@ Use **Regenerar não confirmadas** para pedir uma nova tentativa só para as rej
 > As imagens DALL-E são gerenciadas separadamente no painel **"Imagens ilustrativas com DALL-E 3"**.
 """)
 
-    # 7. Imagens
-    st.subheader("7. Imagens nas Questões")
+    # 7. Fluxo Banco de Questões
+    st.subheader("7. Fluxo 3 — Banco de Questões (BancoProvas)")
+    st.markdown("""
+Use as questões que você cadastrou no [BancoProvas](https://bco-provas.netlify.app),
+o banco de questões dos professores da Unicid.
+
+1. Abra a sub-aba **🗄️ Banco de Questões**.
+2. Digite o **e-mail do seu login na Ágora** e clique em **Buscar disciplinas**.
+3. Escolha a **disciplina** e, se quiser, filtre por **dia da semana**, **turno** e **turma**
+   (questões sem turno ou turma definidos servem para qualquer um).
+4. Clique em **Carregar questões do banco** e depois em **Gerar Provas**.
+
+**Quais questões aparecem:** quem contribuiu com **10% ou mais** das questões ativas da
+disciplina usa todas as questões dela; os demais usam só as próprias.
+
+As imagens cadastradas no BancoProvas entram na prova automaticamente, sem upload.
+As questões carregadas também aparecem na revisão da sub-aba **🤖 Importar por IA**;
+uma planilha XLSX carregada tem prioridade sobre elas.
+""")
+
+    # 8. Imagens
+    st.subheader("8. Imagens nas Questões")
     st.markdown("""
 Você pode incluir imagens em questões de três formas independentes:
 
@@ -2424,8 +2650,8 @@ Funciona com questões de qualquer fonte — XLSX carregado ou questões importa
 > **"Descartar imagens"** remove apenas as imagens, sem afetar as questões.
 """)
 
-    # 8. Configurações
-    st.subheader("8. Configurações da Prova")
+    # 9. Configurações
+    st.subheader("9. Configurações da Prova")
     _img("Configurações Finais para gerar as provas.png")
     st.markdown("""
 | Configuração | Descrição |
@@ -2443,8 +2669,8 @@ Funciona com questões de qualquer fonte — XLSX carregado ou questões importa
 - Discursivas: 3,00 pts ÷ nº de questões = **1,00 pt** (3 dis) ou **1,50 pt** (2 dis)
 """)
 
-    # 9. Geração e download
-    st.subheader("9. Geração e Download")
+    # 10. Geração e download
+    st.subheader("10. Geração e Download")
     st.markdown("""
 Após configurar, clique em **Gerar Provas**. Os arquivos recebem o nome do
 professor e a **data de realização** (`DD-MM`). Exemplo para `Cid_R_Andrade`
@@ -2460,8 +2686,8 @@ em `29-06`, o ZIP baixado contém:
 - Quebra para nova página, questões discursivas em **1 coluna** com linhas de resposta.
 """)
 
-    # 10. Dicas
-    st.subheader("10. Dicas de Uso")
+    # 11. Dicas
+    st.subheader("11. Dicas de Uso")
     st.markdown("""
 - Inclua **o dobro de questões** do necessário na planilha para maximizar a variação entre versões.
 - Ao usar a IA, prefira documentos com enunciados **numerados e bem delimitados**.
@@ -2472,8 +2698,8 @@ em `29-06`, o ZIP baixado contém:
 - O DALL-E 3 é indicado para questões **conceituais ou de processos** — evite para questões com gráficos de dados reais (a IA inventará os valores).
 """)
 
-    # 11. Limitações
-    st.subheader("11. Limitações Conhecidas")
+    # 12. Limitações
+    st.subheader("12. Limitações Conhecidas")
     st.markdown("""
 - Geração de PDF requer LibreOffice (Linux/Streamlit Cloud) ou Microsoft Word (Windows/Mac).
 - O fluxo via IA exige internet durante o processamento.
@@ -2812,7 +3038,7 @@ def main():
         arquivo_objetivas    = None
         arquivo_dissertativas = None
 
-        sub_xlsx, sub_ia = st.tabs(["📊 Planilha XLSX", "🤖 Importar por IA"])
+        sub_xlsx, sub_ia, sub_banco = st.tabs(["📊 Planilha XLSX", "🤖 Importar por IA", "🗄️ Banco de Questões"])
 
         with sub_xlsx:
             if _usando_ia and _ia_obj:
@@ -2847,6 +3073,9 @@ def main():
 
         with sub_ia:
             _ui_importar_ia()
+
+        with sub_banco:
+            _ui_carregar_banco()
 
         st.divider()
 
@@ -3003,7 +3232,7 @@ def main():
                         if fname in uploaded_images
                     } if uploaded_images else {}
                     imagens_ia = st.session_state.get("ia_imgs", {})
-                    imagens_bytes = {**imagens_ia, **imagens_xlsx}
+                    imagens_bytes = {**st.session_state.get("banco_imagens", {}), **imagens_ia, **imagens_xlsx}
 
                     prof_slug = _slug_arquivo(nome_professor) or "professor"
                     data_str  = data_prova.strftime("%d-%m")
@@ -3100,7 +3329,7 @@ def main():
 
     st.divider()
     st.caption(
-        "Versão 3.7.5 · Prof.Me. Cid R. Andrade · "
+        "Versão 3.8.0 · Prof.Me. Cid R. Andrade · "
         "[profandrade@gmail.com](mailto:profandrade@gmail.com) · "
         "Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)"
     )
