@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Gerador de Provas Unicid - Versão Web
-Versão 3.8.1
+Versão 3.9.0
 Gera provas com questões de múltipla escolha e dissertativas,
 já no formato da Unicid
 
@@ -23,6 +23,7 @@ Este programa é Software Livre licenciado sob a GPL v3+.
 Veja https://www.gnu.org/licenses/ para mais detalhes.
 
 ChangeLog
+3.9.0 out/2026: Botão "Abrir o BancoProvas" na sub-aba Banco de Questões
 3.8.1 out/2026: Banco de Questões exige login Google (st.login) em vez de e-mail
                   digitado; as demais sub-abas continuam sem login
 3.8.0 out/2026: Terceira sub-aba "Banco de Questões": carrega questões do
@@ -2007,6 +2008,9 @@ def _ui_carregar_banco():
     st.session_state do fluxo de IA (ia_obj, ia_dis, ia_dis_gab, ia_confirmadas)
     e guarda as imagens em banco_imagens ({enunciado: bytes}).
     """
+    st.link_button("🗄️ Abrir o BancoProvas", "https://bco-provas.netlify.app",
+                   help="Cadastre, importe ou gere questões no banco.")
+
     if not BANCO_DISPONIVEL:
         st.warning(
             "Pacote `google-cloud-firestore` não instalado.  \n"
@@ -2471,7 +2475,7 @@ def _img(nome):
 
 def _ui_manual():
     st.header("Manual do Usuário")
-    st.caption("Versão 3.8.1 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
+    st.caption("Versão 3.9.0 · Prof.Me. Cid R. Andrade · Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)")
     st.divider()
 
     # 1. Introdução
@@ -3361,7 +3365,7 @@ def main():
 
     st.divider()
     st.caption(
-        "Versão 3.8.1 · Prof.Me. Cid R. Andrade · "
+        "Versão 3.9.0 · Prof.Me. Cid R. Andrade · "
         "[profandrade@gmail.com](mailto:profandrade@gmail.com) · "
         "Co-Autor: Prof.Me. Rafael Cotrin (v3.4.0+)"
     )
