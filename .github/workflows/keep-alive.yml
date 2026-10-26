@@ -9,7 +9,7 @@ on:
 jobs:
   ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -20,7 +20,7 @@ jobs:
       - name: Instalar Playwright
         run: |
           pip install playwright
-          playwright install --with-deps chromium
+          playwright install --only-shell chromium
 
       - name: Acordar o app
         run: python scripts/keep_alive.py
