@@ -1,0 +1,34 @@
+name: Keep-alive Streamlit
+
+on:
+  schedule:
+    # A cada 6 horas (horário UTC)
+    - cron: "0 */6 * * *"
+  workflow_dispatch:  # permite rodar manualmente pela aba Actions
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar Playwright
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+
+      - name: Acordar o app
+        run: python scripts/keep_alive.py
+
+      - name: Salvar screenshot em caso de falha
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: keep-alive-falha
+          path: keep_alive_falha.png
+          if-no-files-found: ignore
