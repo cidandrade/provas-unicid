@@ -1664,13 +1664,17 @@ def _ui_configuracoes(ls):
     col_salvar, col_restaurar = st.columns(2)
     with col_salvar:
         if st.button("💾 Salvar como padrão", type="primary", use_container_width=True, key="btn_cfg_salvar"):
-            _salvar_config_no_local_storage(ls)
-            st.toast("Preferências salvas com sucesso!", icon="✅")
-            st.session_state["_ir_para_gerador"] = True
+            # Não grava aqui: o st.rerun() imediato descartaria o componente JS
+            # antes de ele executar localStorage.setItem. A gravação ocorre no
+            # próximo ciclo, em main(), sem rerun logo após.
+            st.session_state["_cfg_salvar_pendente"] = True
             st.rerun()
     with col_restaurar:
         if st.button("↺ Restaurar padrão", use_container_width=True, key="btn_cfg_restaurar"):
-            _restaurar_config_padrao(ls)
+            for _k, _d in CONFIG_DEFAULTS.items():
+                st.session_state[_k] = _d
+            st.session_state["_cfg_init_done"] = True
+            st.session_state["_cfg_salvar_pendente"] = True
             st.rerun()
 
 
@@ -3002,7 +3006,14 @@ def main():
 
     # Carrega (ou inicializa) configurações persistidas
     ls = _LocalStorage() if _LS_DISPONIVEL else None
+    _salvar_agora = st.session_state.pop("_cfg_salvar_pendente", False)
+    if _salvar_agora:
+        st.session_state["_cfg_init_done"] = True  # evita sobrescrever com valores antigos do LS
     _hidratar_config_do_local_storage(ls)
+    if _salvar_agora:
+        _salvar_config_no_local_storage(ls)
+        st.toast("Preferências salvas com sucesso!", icon="✅")
+        st.session_state["_ir_para_gerador"] = True
 
     tab_ger, tab_cfg, tab_man, tab_faq = st.tabs([
         "🏠 Gerador de Provas", "⚙️ Configurações", "📖 Manual", "❓ FAQ"
