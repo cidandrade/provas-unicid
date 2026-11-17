@@ -74,6 +74,8 @@ def buscar_professor_por_email(db, email):
 
 def elegivel(stats, uid):
     """Regra dos 10%: 10 * meu >= total (com total > 0)."""
+    # TEMPORÁRIO: trava dos 10% desligada (remover esta linha para restaurar).
+    return True
     if not stats:
         return False
     total = stats.get("total", 0) or 0
